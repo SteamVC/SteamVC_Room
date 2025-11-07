@@ -1,36 +1,92 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SteamVC Room
 
-## Getting Started
+声質が参加者の中でシャッフルされるVCルームWebサービス。
 
-First, run the development server:
+## 機能
+
+- ルーム作成・入室（ID検索）
+- リアルタイム音声通信（WebRTC）
+- 複数参加者対応（SFU方式）
+- 音声変換機能（AI統合予定）
+
+## 技術スタック
+
+### フロントエンド
+- **Next.js 16** + React 19 + TypeScript
+- **TailwindCSS** - スタイリング
+- **Socket.IO Client** - WebSocket通信
+- **Mediasoup Client** - WebRTC音声配信
+
+### バックエンド
+
+#### API Server (Go)
+- **Gin** - HTTPルーティング
+- **Redis** - ルーム管理・状態保存
+- **WebSocket** - リアルタイム通信
+- **Docker** - コンテナ化
+
+#### SFU Server (Node.js)
+- **Mediasoup** - WebRTC SFU
+- **Socket.IO** - シグナリング
+- **Express** - HTTPサーバー
+
+### 通信プロトコル
+- **WebRTC** - 音声ストリーム伝送
+- **WebSocket** - ルーム状態同期
+- **HTTP** - REST API、サーバー間通知
+
+### AIモデル（実装予定）
+- **StreamVC** - 低レイテンシ音声変換（70ms目標）
+- **Seed-VC** - 代替案（レイテンシ3000ms程度）
+
+## クイックスタート
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# Dockerで起動（推奨）
+docker-compose up --build
+
+# アクセス
+# フロントエンド: http://localhost:3001
+# API Server: http://localhost:8080
+# SFU Server: http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+詳細なセットアップ手順は [SETUP.md](SETUP.md) を参照してください。
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## プロジェクト構造
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+SteamVC_Room/
+├── app/                    # Next.js フロントエンド
+│   ├── page.tsx           # トップページ（ルーム作成・参加）
+│   └── room/[id]/         # ルームページ
+├── backend/
+│   ├── api-server/        # Go API Server
+│   │   ├── main.go        # ルーム管理、Redis連携
+│   │   └── Dockerfile
+│   └── sfu-server/        # Node.js SFU Server
+│       ├── src/server.ts  # Mediasoup WebRTC
+│       └── Dockerfile
+├── docker-compose.yml      # Docker構成
+└── SETUP.md               # 詳細セットアップガイド
+```
 
-## Learn More
+## 実装状況
 
-To learn more about Next.js, take a look at the following resources:
+### 完了
+- [x] Go API Server（ルーム管理、Redis連携）
+- [x] Node.js SFU Server（Mediasoup WebRTC）
+- [x] フロントエンド（ルーム作成・参加UI）
+- [x] WebSocket通信
+- [x] WebRTC音声ストリーム
+- [x] Docker環境
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 今後の実装
+- [ ] Python音声変換サーバー（StreamVC/Seed-VC）
+- [ ] AI音声変換パイプライン
+- [ ] ユーザー認証
+- [ ] 声質ランダムシャッフル機能
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## ライセンス
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+MIT
