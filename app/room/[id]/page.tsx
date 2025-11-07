@@ -4,12 +4,32 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { io, Socket } from 'socket.io-client';
 import { Device } from 'mediasoup-client';
-import { RtpCapabilities, Transport } from 'mediasoup-client/lib/types';
+import { RtpCapabilities, Transport, Producer, Consumer } from 'mediasoup-client/lib/types';
 
 interface Participant {
   id: string;
   name: string;
   audioEnabled: boolean;
+}
+
+interface RoomInfo {
+  id: string;
+  name: string;
+  participants: number;
+  max_participants: number;
+}
+
+interface SocketResponse {
+  error?: string;
+  rtpCapabilities?: RtpCapabilities;
+  id?: string;
+  iceParameters?: unknown;
+  iceCandidates?: unknown;
+  dtlsParameters?: unknown;
+  producerId?: string;
+  kind?: string;
+  rtpParameters?: unknown;
+  success?: boolean;
 }
 
 export default function RoomPage() {
@@ -19,27 +39,13 @@ export default function RoomPage() {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
-  const [roomInfo, setRoomInfo] = useState<any>(null);
+  const [roomInfo, setRoomInfo] = useState<RoomInfo | null>(null);
 
   const socketRef = useRef<Socket | null>(null);
   const deviceRef = useRef<Device | null>(null);
   const producerTransportRef = useRef<Transport | null>(null);
   const consumerTransportRef = useRef<Transport | null>(null);
-  const audioProducerRef = useRef<any>(null);
-
-  useEffect(() => {
-    // ルーム情報取得
-    fetchRoomInfo();
-
-    // Socket.IO接続
-    connectToRoom();
-
-    return () => {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-      }
-    };
-  }, [roomId]);
+  const audioProducerRef = useRef<Producer | null>(null);
 
   const fetchRoomInfo = async () => {
     try {
@@ -59,14 +65,16 @@ export default function RoomPage() {
       console.log('Connected to SFU server');
 
       // ルームに参加
-      socket.emit('join-room', { roomId, userId: socket.id }, async (response: any) => {
+      socket.emit('join-room', { roomId, userId: socket.id }, async (response: SocketResponse) => {
         console.log('Joined room, RTP capabilities:', response.rtpCapabilities);
+
+        if (!response.rtpCapabilities) return;
 
         // Mediasoup Deviceを初期化
         const device = new Device();
         deviceRef.current = device;
 
-        await device.load({ routerRtpCapabilities: response.rtpCapabilities as RtpCapabilities });
+        await device.load({ routerRtpCapabilities: response.rtpCapabilities });
         console.log('Device loaded');
 
         setIsConnected(true);
@@ -89,9 +97,24 @@ export default function RoomPage() {
     });
   };
 
+  useEffect(() => {
+    // ルーム情報取得
+    fetchRoomInfo();
+
+    // Socket.IO接続
+    connectToRoom();
+
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomId]);
+
   const createTransport = async (direction: 'send' | 'recv'): Promise<Transport | null> => {
     return new Promise((resolve) => {
-      socketRef.current?.emit('create-transport', { roomId, direction }, async (response: any) => {
+      socketRef.current?.emit('create-transport', { roomId, direction }, async (response: SocketResponse) => {
         if (response.error) {
           console.error('Transport creation failed:', response.error);
           resolve(null);
@@ -107,11 +130,11 @@ export default function RoomPage() {
           return;
         }
 
-        transport.on('connect', ({ dtlsParameters }, callback, errback) => {
+        transport.on('connect', (params: { dtlsParameters: unknown }, callback: () => void, errback: (error: Error) => void) => {
           socketRef.current?.emit('connect-transport', {
             transportId: transport.id,
-            dtlsParameters
-          }, (response: any) => {
+            dtlsParameters: params.dtlsParameters
+          }, (response: SocketResponse) => {
             if (response.error) {
               errback(new Error(response.error));
             } else {
@@ -121,15 +144,15 @@ export default function RoomPage() {
         });
 
         if (direction === 'send') {
-          transport.on('produce', ({ kind, rtpParameters }, callback, errback) => {
+          transport.on('produce', (params: { kind: string; rtpParameters: unknown }, callback: (params: { id: string }) => void, errback: (error: Error) => void) => {
             socketRef.current?.emit('produce', {
               transportId: transport.id,
-              kind,
-              rtpParameters
-            }, (response: any) => {
+              kind: params.kind,
+              rtpParameters: params.rtpParameters
+            }, (response: SocketResponse) => {
               if (response.error) {
                 errback(new Error(response.error));
-              } else {
+              } else if (response.id) {
                 callback({ id: response.id });
               }
             });
@@ -195,9 +218,14 @@ export default function RoomPage() {
         transportId: consumerTransportRef.current.id,
         producerId,
         rtpCapabilities: deviceRef.current.rtpCapabilities
-      }, async (response: any) => {
+      }, async (response: SocketResponse) => {
         if (response.error) {
           console.error('Consume failed:', response.error);
+          return;
+        }
+
+        if (!response.id || !response.producerId || !response.kind || !response.rtpParameters) {
+          console.error('Invalid consume response');
           return;
         }
 
