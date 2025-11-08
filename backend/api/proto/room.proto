@@ -1,0 +1,54 @@
+syntax = "proto3";
+package steamvc.room.v1;
+option go_package = "github.com/SteamVC/SteamVC_Room/backend/api/pd;pd";
+
+import "common.proto";
+import "google/api/annotations.proto";
+
+service RoomService {
+  // 投稿操作
+  rpc GetRoom(GetRoomRequest) returns (GetRoomResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/room/{room_id}"
+    };
+  }
+  rpc CreateRoom(CreateRoomRequest) returns (steamvc.common.v1.StandardResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/room/create"
+      body: "*"
+    };
+  }
+  rpc DeleteRoom(DeleteRoomRequest) returns (steamvc.common.v1.StandardResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/room/delete/{room_id}"
+    };
+  }
+}
+
+message User {
+    string user_name = 1;
+    string user_id = 2;
+    string user_image = 3;
+}
+
+message Room {
+    string room_id = 1;
+    repeated User users = 2;
+}
+
+message GetRoomRequest {
+    string room_id = 1;
+}
+
+message GetRoomResponse {
+    Room room = 1;
+}
+
+message CreateRoomRequest{
+    string user_name =2;
+    string user_id =3;
+}
+
+message DeleteRoomRequest {
+  string room_id = 1;
+}

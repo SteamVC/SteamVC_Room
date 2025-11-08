@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package steamvc.common.v1;
+
+option go_package = "github.com/SteamVC/SteamVC_Room/backend/api/pd;pd";
+
+message StandardResponse {
+  bool success = 1;
+  string message = 2;
+}
+message Empty {}
