@@ -3,9 +3,14 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { io, Socket } from 'socket.io-client';
-import { Device } from 'mediasoup-client';
-import { RtpCapabilities, Transport, Producer, Consumer } from 'mediasoup-client/lib/types';
-import { Room } from '@/src/app/room/Room';
+import { Device, types } from 'mediasoup-client';
+import { Room } from '@/app/room/Room';
+
+type RtpCapabilities = types.RtpCapabilities;
+type Transport = types.Transport;
+type Producer = types.Producer;
+type MediaKind = types.MediaKind;
+type RtpParameters = types.RtpParameters;
 
 interface Participant {
   id: string;
@@ -21,8 +26,8 @@ interface SocketResponse {
   iceCandidates?: unknown;
   dtlsParameters?: unknown;
   producerId?: string;
-  kind?: string;
-  rtpParameters?: unknown;
+  kind?: MediaKind;
+  rtpParameters?: RtpParameters;
   success?: boolean;
 }
 
@@ -96,15 +101,25 @@ export default function RoomPage() {
   const createTransport = async (direction: 'send' | 'recv'): Promise<Transport | null> => {
     return new Promise((resolve) => {
       socketRef.current?.emit('create-transport', { roomId, direction }, async (response: SocketResponse) => {
-        if (response.error) {
-          console.error('Transport creation failed:', response.error);
+        if (response.error || !response.id) {
+          console.error('Transport creation failed:', response.error || 'Missing transport id');
           resolve(null);
           return;
         }
 
         const transport = direction === 'send'
-          ? deviceRef.current?.createSendTransport(response)
-          : deviceRef.current?.createRecvTransport(response);
+          ? deviceRef.current?.createSendTransport({
+              id: response.id,
+              iceParameters: response.iceParameters,
+              iceCandidates: response.iceCandidates,
+              dtlsParameters: response.dtlsParameters,
+            } as any)
+          : deviceRef.current?.createRecvTransport({
+              id: response.id,
+              iceParameters: response.iceParameters,
+              iceCandidates: response.iceCandidates,
+              dtlsParameters: response.dtlsParameters,
+            } as any);
 
         if (!transport) {
           resolve(null);

@@ -2,9 +2,9 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { StartScreen } from '@/src/app/start/StartScreen';
-import { Home } from '@/src/app/home/Home';
-import { IDInputForm } from '@/src/app/form/IDInputForm';
+import { StartScreen } from '@/app/start/StartScreen';
+import { Home } from '@/app/home/Home';
+import { IDInputForm } from '@/app/form/IDInputForm';
 
 type Screen = 'start' | 'home' | 'joinRoom';
 
