@@ -198,7 +198,12 @@ func listRooms(c *gin.Context) {
 			redisClient.SRem(ctx, "rooms", roomID)
 			continue
 		}
-		rooms = append(rooms, data)
+		// map[string]string を map[string]interface{} に変換
+		room := make(map[string]interface{})
+		for k, v := range data {
+			room[k] = v
+		}
+		rooms = append(rooms, room)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"rooms": rooms})
