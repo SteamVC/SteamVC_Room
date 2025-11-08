@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { io, Socket } from 'socket.io-client';
 import { Device } from 'mediasoup-client';
 import { RtpCapabilities, Transport, Producer, Consumer } from 'mediasoup-client/lib/types';
-import { Room } from '@/components/Room';
+import { Room } from '@/src/app/room/Room';
 
 interface Participant {
   id: string;
