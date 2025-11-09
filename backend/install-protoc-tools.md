@@ -72,3 +72,6 @@ docker run -d -p 8080:8080 `
   -e SWAGGER_JSON=/usr/share/nginx/html/swagger/room.swagger.json `
   -v C:/Users/PCUSER/VScode-project/SteamVC_Room/backend/api/docs:/usr/share/nginx/html/swagger `
   swaggerapi/swagger-ui
+
+### orvalのインストール
+bun install @openapitools/openapi-generator-cli -g
