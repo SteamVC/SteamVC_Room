@@ -1,0 +1,4 @@
+# Backend
+/api-server/main
+/sfu-server/dist
+/sfu-server/node_modules

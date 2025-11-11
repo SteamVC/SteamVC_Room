@@ -2,7 +2,14 @@ import express from 'express';
 import { Server } from 'socket.io';
 import http from 'http';
 import * as mediasoup from 'mediasoup';
-import { Worker, Router, Transport, Producer, Consumer } from 'mediasoup/node/lib/types';
+import type { types as mediasoupTypes } from 'mediasoup';
+
+type Worker = mediasoupTypes.Worker;
+type Router = mediasoupTypes.Router;
+type Transport = mediasoupTypes.Transport;
+type Producer = mediasoupTypes.Producer;
+type Consumer = mediasoupTypes.Consumer;
+type RtpCodecCapability = mediasoupTypes.RtpCodecCapability;
 
 const app = express();
 const server = http.createServer(app);
@@ -18,7 +25,7 @@ app.use(express.json());
 // Mediasoup設定
 const mediaCodecs = [
   {
-    kind: 'audio',
+    kind: 'audio' as const,
     mimeType: 'audio/opus',
     clockRate: 48000,
     channels: 2
@@ -42,7 +49,7 @@ async function createWorker() {
 
   console.log(`Mediasoup Worker created [pid:${worker.pid}]`);
 
-  worker.on('died', (error) => {
+  worker.on('died', (error: Error) => {
     console.error('Mediasoup worker died', error);
     setTimeout(() => process.exit(1), 2000);
   });
@@ -74,7 +81,7 @@ app.post('/api/rooms/:roomId/create', async (req, res) => {
     await createRouter(roomId);
     rooms.set(roomId, new Set());
     res.json({ success: true, roomId });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Router creation failed:', error);
     res.status(500).json({ error: 'Router creation failed' });
   }
@@ -131,7 +138,7 @@ io.on('connection', (socket) => {
         iceCandidates: transport.iceCandidates,
         dtlsParameters: transport.dtlsParameters
       });
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Transport creation failed:', error);
       callback({ error: 'Transport creation failed' });
     }
@@ -147,7 +154,7 @@ io.on('connection', (socket) => {
     try {
       await transport.connect({ dtlsParameters });
       callback({ success: true });
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Transport connection failed:', error);
       callback({ error: 'Transport connection failed' });
     }
@@ -173,7 +180,7 @@ io.on('connection', (socket) => {
 
       // 他の参加者に通知
       socket.broadcast.emit('new-producer', { producerId: producer.id });
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Produce failed:', error);
       callback({ error: 'Produce failed' });
     }
@@ -220,7 +227,7 @@ io.on('connection', (socket) => {
         kind: consumer.kind,
         rtpParameters: consumer.rtpParameters
       });
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Consume failed:', error);
       callback({ error: 'Consume failed' });
     }
