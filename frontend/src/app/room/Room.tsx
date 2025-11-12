@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Mic, MicOff, Headphones, Users, X } from 'lucide-react';
@@ -23,6 +24,8 @@ export function Room({
   onToggleAudio,
   onLeave
 }: RoomProps) {
+  const [showParticipantsList, setShowParticipantsList] = useState(false);
+
   // 参加者が4人未満の場合、空のスロットを追加
   const participantSlots = [...participants];
   while (participantSlots.length < 4) {
@@ -107,12 +110,56 @@ export function Room({
 
           <Button
             size="icon"
+            onClick={() => setShowParticipantsList(true)}
             className="h-12 w-12 rounded-full bg-green-500 hover:bg-green-600"
           >
             <Users className="h-6 w-6" />
           </Button>
         </div>
       </div>
+
+      {/* 参加者リストモーダル */}
+      {showParticipantsList && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowParticipantsList(false)}>
+          <Card className="w-full max-w-md m-4" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-green-600 px-6 py-4 rounded-t-lg">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-white">参加者リスト ({participants.length}人)</h2>
+                <Button
+                  onClick={() => setShowParticipantsList(false)}
+                  variant="ghost"
+                  size="icon"
+                  className="text-white hover:bg-green-700"
+                >
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
+            </div>
+            <CardContent className="p-6 max-h-96 overflow-y-auto">
+              {participants.length === 0 ? (
+                <p className="text-center text-gray-500">参加者がいません</p>
+              ) : (
+                <div className="space-y-3">
+                  {participants.map((participant) => (
+                    <div
+                      key={participant.id}
+                      className="flex items-center gap-3 p-3 bg-gray-100 rounded-lg"
+                    >
+                      <div className="w-10 h-10 bg-gray-400 rounded-full flex-shrink-0" />
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-800">
+                          {participant.name || '名前なし'}
+                        </p>
+                        <p className="text-sm text-gray-500">ID: {participant.id.slice(0, 8)}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
