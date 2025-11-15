@@ -35,7 +35,8 @@ export default function Page() {
 
   const handleCreateRoom = async () => {
     try {
-      const response = await fetch('http://localhost:8080/api/rooms', {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081';
+      const response = await fetch(`${apiUrl}/api/rooms`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: `${userName}のルーム`, max_participants: 10 })
@@ -53,8 +54,25 @@ export default function Page() {
     setCurrentScreen('joinRoom');
   };
 
-  const handleRoomIdSubmit = (roomId: string) => {
-    router.push(`/room/${roomId}?name=${encodeURIComponent(userName)}`);
+  const handleRoomIdSubmit = async (roomId: string) => {
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081';
+      const response = await fetch(`${apiUrl}/api/rooms/${roomId}`);
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          alert('指定されたルームが見つかりません');
+        } else {
+          alert('ルームの確認に失敗しました');
+        }
+        return;
+      }
+
+      router.push(`/room/${roomId}?name=${encodeURIComponent(userName)}`);
+    } catch (error) {
+      console.error('Room check failed:', error);
+      alert('ルームの確認に失敗しました');
+    }
   };
 
   const handleBack = () => {

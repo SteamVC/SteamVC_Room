@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ArrowRight } from 'lucide-react';
 
 interface IDInputFormProps {
-  onSubmit: (roomId: string) => void;
+  onSubmit: (roomId: string) => void | Promise<void>;
   onBack: () => void;
 }
 
