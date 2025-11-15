@@ -18,6 +18,21 @@ export default function Page() {
     setCurrentScreen('home');
   };
 
+  const roomService = getRoomService();
+
+  async function createRoom() {
+  try {
+    const response = await roomService.roomServiceCreateRoom({
+      userName: 'John Doe',
+      userId: 'user123',
+    });
+
+    console.log('Room created:', response);
+  } catch (error) {
+    console.error('Failed to create room:', error);
+  }
+  }
+
   const handleCreateRoom = async () => {
     try {
       const response = await fetch('http://localhost:8080/api/rooms', {
