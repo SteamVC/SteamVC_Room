@@ -12,7 +12,7 @@ service RoomService {
       get: "/api/v1/room/{room_id}"
     };
   }
-  rpc CreateRoom(CreateRoomRequest) returns (steamvc.common.v1.StandardResponse) {
+  rpc CreateRoom(CreateRoomRequest) returns (CreateRoomResponse) {
     option (google.api.http) = {
       post: "/api/v1/room/create"
       body: "*"
@@ -47,6 +47,12 @@ message GetRoomResponse {
 message CreateRoomRequest{
     string user_name =2;
     string user_id =3;
+}
+
+message CreateRoomResponse {
+    bool success = 1;
+    string message = 2;
+    string room_id = 3;
 }
 
 message DeleteRoomRequest {

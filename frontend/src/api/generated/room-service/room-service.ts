@@ -6,6 +6,7 @@
  */
 import type {
   V1CreateRoomRequest,
+  V1CreateRoomResponse,
   V1GetRoomResponse,
   V1StandardResponse
 } from '.././models';
@@ -18,7 +19,7 @@ import { customAxiosInstance } from '../../axios-instance';
 const roomServiceCreateRoom = (
     v1CreateRoomRequest: V1CreateRoomRequest,
  ) => {
-      return customAxiosInstance<V1StandardResponse>(
+      return customAxiosInstance<V1CreateRoomResponse>(
       {url: `/api/v1/room/create`, method: 'POST',
       headers: {'Content-Type': 'application/json', },
       data: v1CreateRoomRequest

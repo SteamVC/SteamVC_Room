@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { StartScreen } from '@/app/start/StartScreen';
 import { Home } from '@/app/home/Home';
 import { IDInputForm } from '@/app/form/IDInputForm';
+import { getRoomService } from '@/api/generated/room-service/room-service';
 
 type Screen = 'start' | 'home' | 'joinRoom';
 
@@ -20,30 +21,21 @@ export default function Page() {
 
   const roomService = getRoomService();
 
-  async function createRoom() {
-  try {
-    const response = await roomService.roomServiceCreateRoom({
-      userName: 'John Doe',
-      userId: 'user123',
-    });
-
-    console.log('Room created:', response);
-  } catch (error) {
-    console.error('Failed to create room:', error);
-  }
-  }
-
   const handleCreateRoom = async () => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081';
-      const response = await fetch(`${apiUrl}/api/rooms`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: `${userName}のルーム`, max_participants: 10 })
+      // 生成されたAPIクライアントを使用
+      const response = await roomService.roomServiceCreateRoom({
+        userName: userName,
+        userId: `user_${Date.now()}`, // 一時的なユーザーID
       });
 
-      const data = await response.json();
-      router.push(`/room/${data.id}?name=${encodeURIComponent(userName)}`);
+      if (response.success && response.roomId) {
+        // レスポンスからルームIDを取得してページ遷移
+        console.log('Room created:', response);
+        router.push(`/room/${response.roomId}?name=${encodeURIComponent(userName)}`);
+      } else {
+        alert('ルーム作成に失敗しました: ' + (response.message || '不明なエラー'));
+      }
     } catch (error) {
       console.error('Room creation failed:', error);
       alert('ルーム作成に失敗しました');

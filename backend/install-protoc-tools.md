@@ -70,7 +70,7 @@ protoc -I api/proto \
 
 docker run -d -p 8080:8080 `
   -e SWAGGER_JSON=/usr/share/nginx/html/swagger/room.swagger.json `
-  -v C:/Users/PCUSER/VScode-project/SteamVC_Room/backend/api/docs:/usr/share/nginx/html/swagger `
+  -v ${PWD}/backend/api/docs:/usr/share/nginx/html/swagger `
   swaggerapi/swagger-ui
 
 ### orvalのインストール

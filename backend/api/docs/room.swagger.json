@@ -23,7 +23,7 @@
           "200": {
             "description": "A successful response.",
             "schema": {
-              "$ref": "#/definitions/v1StandardResponse"
+              "$ref": "#/definitions/v1CreateRoomResponse"
             }
           },
           "default": {
@@ -146,6 +146,20 @@
           "type": "string"
         },
         "userId": {
+          "type": "string"
+        }
+      }
+    },
+    "v1CreateRoomResponse": {
+      "type": "object",
+      "properties": {
+        "success": {
+          "type": "boolean"
+        },
+        "message": {
+          "type": "string"
+        },
+        "roomId": {
           "type": "string"
         }
       }

@@ -8,6 +8,7 @@
 export * from './protobufAny';
 export * from './rpcStatus';
 export * from './v1CreateRoomRequest';
+export * from './v1CreateRoomResponse';
 export * from './v1GetRoomResponse';
 export * from './v1Room';
 export * from './v1StandardResponse';
