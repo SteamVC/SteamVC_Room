@@ -1,22 +1,15 @@
-FROM golang:1.21-alpine AS builder
-
+# build stage
+FROM golang:1.25-alpine AS builder
 WORKDIR /app
-
-COPY go.mod ./
-COPY go.sum* ./
-
+COPY go.mod go.sum ./
 RUN go mod download
-
 COPY . .
+RUN CGO_ENABLED=0 go build -o server ./cmd/server
 
-RUN go build -o main .
-
-FROM alpine:latest
-
-WORKDIR /root/
-
-COPY --from=builder /app/main .
-
+# runtime stage
+FROM gcr.io/distroless/base-debian12
+ENV PORT=8080
+WORKDIR /app
+COPY --from=builder /app/server /app/server
 EXPOSE 8080
-
-CMD ["./main"]
+ENTRYPOINT [ "/app/server" ]
