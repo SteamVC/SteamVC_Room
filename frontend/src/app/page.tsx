@@ -6,10 +6,10 @@ import { Home } from '@/app/home/Home';
 import { IDInputForm } from '@/app/form/IDInputForm';
 import { RoomServiceApi, Configuration } from '@/api/generated';
 
-type Screen = 'start' | 'home' | 'joinRoom';
+type Screen = 'home' | 'joinRoom';
 
 export default function Page() {
-  const [currentScreen, setCurrentScreen] = useState<Screen>('start');
+  const [currentScreen, setCurrentScreen] = useState<Screen>('home');
   const [userName, setUserName] = useState('');
   const router = useRouter();
 
