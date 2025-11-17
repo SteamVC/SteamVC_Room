@@ -92,7 +92,7 @@ docker-compose up --build -d
 
 | サービス   | コンテナ名       | ポート | 状態  |
 | ---------- | ---------------- | ------ | ----- |
-| API Server | steamvc-api      | 8081   | ✅ Up |
+| API Server | steamvc-api      | 8080   | ✅ Up |
 | SFU Server | steamvc-sfu      | 3000   | ✅ Up |
 | Frontend   | steamvc-frontend | 3001   | ✅ Up |
 | Redis      | steamvc-redis    | 6379   | ✅ Up |
@@ -102,14 +102,14 @@ docker-compose up --build -d
 #### ✅ ヘルスチェック
 
 ```bash
-curl http://localhost:8081/api/v1/healthz
+curl http://localhost:8080/api/v1/healthz
 # HTTP 200 OK
 ```
 
 #### ✅ ルーム作成
 
 ```bash
-curl -X POST http://localhost:8081/api/v1/room/create \
+curl -X POST http://localhost:8080/api/v1/room/create \
   -H "Content-Type: application/json" \
   -d '{"userId":"test-user-123","userName":"TestUser","userImage":""}'
 
@@ -123,7 +123,7 @@ curl -X POST http://localhost:8081/api/v1/room/create \
 #### ✅ ルーム情報取得
 
 ```bash
-curl http://localhost:8081/api/v1/room/01KA8CZZYDPZ6CJXKSFCNNNY48
+curl http://localhost:8080/api/v1/room/01KA8CZZYDPZ6CJXKSFCNNNY48
 
 # レスポンス:
 {
@@ -144,7 +144,7 @@ curl http://localhost:8081/api/v1/room/01KA8CZZYDPZ6CJXKSFCNNNY48
 #### ✅ ルーム参加
 
 ```bash
-curl -X POST http://localhost:8081/api/v1/room/01KA8CZZYDPZ6CJXKSFCNNNY48/join \
+curl -X POST http://localhost:8080/api/v1/room/01KA8CZZYDPZ6CJXKSFCNNNY48/join \
   -H "Content-Type: application/json" \
   -d '{"userId":"test-user-456","userName":"SecondUser","userImage":""}'
 
@@ -326,7 +326,7 @@ KEYS *
 ### アクセス URL
 
 - フロントエンド: http://localhost:3001
-- API Server: http://localhost:8081
+- API Server: http://localhost:8080
 - SFU Server: http://localhost:3000
 
 ### 主要なファイルパス
