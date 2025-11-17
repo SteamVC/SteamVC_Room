@@ -74,5 +74,6 @@ export default function Page() {
     return <IDInputForm onSubmit={handleRoomIdSubmit} onBack={handleBack} />;
   }
 
+
   return <Home onCreateRoom={handleCreateRoom} onJoinRoom={handleJoinRoom} />;
 }
