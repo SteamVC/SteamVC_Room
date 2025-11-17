@@ -35,13 +35,13 @@ func main() {
 
 	rdb := redis.NewClient(&redis.Options{
 		Addr:         redisAddr,
-		PoolSize:     10,               // 接続プールサイズ
-		MinIdleConns: 5,                // 最小アイドル接続数
-		MaxRetries:   3,                // リトライ回数
-		DialTimeout:  5 * time.Second,  // 接続タイムアウト
-		ReadTimeout:  3 * time.Second,  // 読み込みタイムアウト
-		WriteTimeout: 3 * time.Second,  // 書き込みタイムアウト
-		PoolTimeout:  4 * time.Second,  // プールからの取得タイムアウト
+		PoolSize:     10,              // 接続プールサイズ
+		MinIdleConns: 5,               // 最小アイドル接続数
+		MaxRetries:   3,               // リトライ回数
+		DialTimeout:  5 * time.Second, // 接続タイムアウト
+		ReadTimeout:  3 * time.Second, // 読み込みタイムアウト
+		WriteTimeout: 3 * time.Second, // 書き込みタイムアウト
+		PoolTimeout:  4 * time.Second, // プールからの取得タイムアウト
 	})
 
 	// Redis接続確認
@@ -51,7 +51,7 @@ func main() {
 	log.Println("connected to redis")
 
 	rr := repo.NewRedisRoomRepo(rdb)
-	idg := service.NewULIDGenerator()
+	idg := service.NewRoomIDGenerator()
 	svc := service.NewRoomService(rr, idg, ttlSec)
 	h := handlers.NewRoomHandler(svc)
 	router := httpx.NewRouter(h)

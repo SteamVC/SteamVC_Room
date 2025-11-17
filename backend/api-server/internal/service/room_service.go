@@ -16,15 +16,15 @@ type RoomService struct {
 }
 
 type IDGenerator interface {
-	New() string
+	New() (string, error)
 }
 
-type ulidGen struct{}
+type roomIDGen struct{}
 
-func (ulidGen) New() string { return idgen.NewULID() }
+func (roomIDGen) New() (string, error) { return idgen.NewRoomID() }
 
-func NewULIDGenerator() IDGenerator {
-	return ulidGen{}
+func NewRoomIDGenerator() IDGenerator {
+	return roomIDGen{}
 }
 
 func NewRoomService(r repo.RoomRepo, idg IDGenerator, ttlSec int) *RoomService {
@@ -32,7 +32,33 @@ func NewRoomService(r repo.RoomRepo, idg IDGenerator, ttlSec int) *RoomService {
 }
 
 func (s *RoomService) Create(ctx context.Context, owner models.User) (string, error) {
-	roomId := s.idg.New()
+	const maxRetries = 10 // ID生成の最大リトライ回数
+
+	var roomId string
+	var err error
+
+	// ID被りがあった場合、最大maxRetries回まで再生成を試みる
+	for i := 0; i < maxRetries; i++ {
+		roomId, err = s.idg.New()
+		if err != nil {
+			return "", err
+		}
+
+		// IDの重複チェック
+		exists, err := s.repo.ExistsRoom(ctx, roomId)
+		if err != nil {
+			return "", err
+		}
+		if !exists {
+			// 重複なし、ループを抜ける
+			break
+		}
+		// 重複あり、次の試行へ
+		if i == maxRetries-1 {
+			return "", ErrRoomIDGenerationFailed
+		}
+	}
+
 	room := models.Room{RoomId: roomId, OwnerId: owner.UserId, CreatedAt: time.Now().Unix()}
 	if err := s.repo.CreateRoom(ctx, room, s.ttlSec); err != nil {
 		return "", err
