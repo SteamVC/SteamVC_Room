@@ -6,55 +6,121 @@ import "common.proto";
 import "google/api/annotations.proto";
 
 service RoomService {
-  // 投稿操作
-  rpc GetRoom(GetRoomRequest) returns (GetRoomResponse) {
+  // ヘルスチェック
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse) {
     option (google.api.http) = {
-      get: "/api/v1/room/{room_id}"
+      get: "/api/v1/healthz"
     };
   }
+
+  // ルーム作成
   rpc CreateRoom(CreateRoomRequest) returns (CreateRoomResponse) {
     option (google.api.http) = {
       post: "/api/v1/room/create"
       body: "*"
     };
   }
+
+  // ルーム取得
+  rpc GetRoom(GetRoomRequest) returns (GetRoomResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/room/{room_id}"
+    };
+  }
+
+  // ルーム削除
   rpc DeleteRoom(DeleteRoomRequest) returns (steamvc.common.v1.StandardResponse) {
     option (google.api.http) = {
       delete: "/api/v1/room/delete/{room_id}"
     };
   }
+
+  // ルームに参加
+  rpc JoinRoom(JoinRoomRequest) returns (steamvc.common.v1.StandardResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/room/{room_id}/join"
+      body: "*"
+    };
+  }
+
+  // ルームから退出
+  rpc LeaveRoom(LeaveRoomRequest) returns (steamvc.common.v1.StandardResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/room/{room_id}/leave"
+      body: "*"
+    };
+  }
+
+  // ルームをタッチ（TTL更新）
+  rpc TouchRoom(TouchRoomRequest) returns (steamvc.common.v1.StandardResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/room/{room_id}/touch"
+    };
+  }
 }
 
 message User {
-    string user_name = 1;
-    string user_id = 2;
+    string user_id = 1;
+    string user_name = 2;
     string user_image = 3;
 }
 
 message Room {
     string room_id = 1;
-    repeated User users = 2;
+    string owner_id = 2;
+    int64 created_at = 3;
 }
 
+// ヘルスチェック
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+    string status = 1;
+}
+
+// ルーム作成
+message CreateRoomRequest {
+    string user_id = 1;
+    string user_name = 2;
+    string user_image = 3;
+}
+
+message CreateRoomResponse {
+    bool success = 1;
+    string room_id = 2;
+}
+
+// ルーム取得
 message GetRoomRequest {
     string room_id = 1;
 }
 
 message GetRoomResponse {
     Room room = 1;
+    repeated User users = 2;
 }
 
-message CreateRoomRequest{
-    string user_name =2;
-    string user_id =3;
-}
-
-message CreateRoomResponse {
-    bool success = 1;
-    string message = 2;
-    string room_id = 3;
-}
-
+// ルーム削除
 message DeleteRoomRequest {
-  string room_id = 1;
+    string room_id = 1;
+    string user_id = 2;
+}
+
+// ルーム参加
+message JoinRoomRequest {
+    string room_id = 1;
+    string user_id = 2;
+    string user_name = 3;
+    string user_image = 4;
+}
+
+// ルーム退出
+message LeaveRoomRequest {
+    string room_id = 1;
+    string user_id = 2;
+}
+
+// ルームタッチ
+message TouchRoomRequest {
+    string room_id = 1;
 }
