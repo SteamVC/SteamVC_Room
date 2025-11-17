@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:8.2-alpine
+    container_name: steamvc-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - steamvc-network
+
+  api-server:
+    build:
+      context: ./backend/api-server
+      dockerfile: Dockerfile
+    container_name: steamvc-api
+    ports:
+      - "8080:8080"
+    environment:
+      - REDIS_ADDR=redis:6379
+      - REDIS_DB=${REDIS_DB:-0}
+      - API_PORT=8080
+      - SFU_SERVER_URL=http://sfu-server:3000
+    depends_on:
+      - redis
+    networks:
+      - steamvc-network
+    restart: unless-stopped
+
+  sfu-server:
+    build:
+      context: ./backend/sfu-server
+      dockerfile: Dockerfile
+    container_name: steamvc-sfu
+    ports:
+      - "3000:3000"
+      - "10000-10100:10000-10100/udp"
+      - "10000-10100:10000-10100/tcp"
+    environment:
+      - PORT=3000
+      - ANNOUNCED_IP=127.0.0.1
+    networks:
+      - steamvc-network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: steamvc-frontend
+    ports:
+      - "3001:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8080
+      - NEXT_PUBLIC_SFU_URL=http://localhost:3000
+    depends_on:
+      - api-server
+      - sfu-server
+    networks:
+      - steamvc-network
+    restart: unless-stopped
+
+volumes:
+  redis-data:
+
+networks:
+  steamvc-network:
+    driver: bridge

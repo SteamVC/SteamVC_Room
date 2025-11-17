@@ -1,0 +1,17 @@
+.gitignore
+.npmignore
+.openapi-generator-ignore
+api.ts
+base.ts
+common.ts
+configuration.ts
+docs/ProtobufAny.md
+docs/RoomServiceApi.md
+docs/RpcStatus.md
+docs/V1CreateRoomRequest.md
+docs/V1GetRoomResponse.md
+docs/V1Room.md
+docs/V1StandardResponse.md
+docs/V1User.md
+git_push.sh
+index.ts

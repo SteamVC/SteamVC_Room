@@ -2,9 +2,9 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { StartScreen } from '@/app/start/StartScreen';
 import { Home } from '@/app/home/Home';
 import { IDInputForm } from '@/app/form/IDInputForm';
+import { getRoomService } from '@/api/generated/room-service/room-service';
 
 type Screen = 'start' | 'home' | 'joinRoom';
 
@@ -18,16 +18,23 @@ export default function Page() {
     setCurrentScreen('home');
   };
 
+  const roomService = getRoomService();
+
   const handleCreateRoom = async () => {
     try {
-      const response = await fetch('http://localhost:8080/api/rooms', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: `${userName}のルーム`, max_participants: 10 })
+      // 生成されたAPIクライアントを使用
+      const response = await roomService.roomServiceCreateRoom({
+        userName: userName,
+        userId: `user_${Date.now()}`, // 一時的なユーザーID
       });
 
-      const data = await response.json();
-      router.push(`/room/${data.id}?name=${encodeURIComponent(userName)}`);
+      if (response.success && response.roomId) {
+        // レスポンスからルームIDを取得してページ遷移
+        console.log('Room created:', response);
+        router.push(`/room/${response.roomId}?name=${encodeURIComponent(userName)}`);
+      } else {
+        alert('ルーム作成に失敗しました: ' + (response.message || '不明なエラー'));
+      }
     } catch (error) {
       console.error('Room creation failed:', error);
       alert('ルーム作成に失敗しました');
@@ -38,17 +45,30 @@ export default function Page() {
     setCurrentScreen('joinRoom');
   };
 
-  const handleRoomIdSubmit = (roomId: string) => {
-    router.push(`/room/${roomId}?name=${encodeURIComponent(userName)}`);
+  const handleRoomIdSubmit = async (roomId: string) => {
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+      const response = await fetch(`${apiUrl}/api/rooms/${roomId}`);
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          alert('指定されたルームが見つかりません');
+        } else {
+          alert('ルームの確認に失敗しました');
+        }
+        return;
+      }
+
+      router.push(`/room/${roomId}?name=${encodeURIComponent(userName)}`);
+    } catch (error) {
+      console.error('Room check failed:', error);
+      alert('ルームの確認に失敗しました');
+    }
   };
 
   const handleBack = () => {
     setCurrentScreen('home');
   };
-
-  if (currentScreen === 'start') {
-    return <StartScreen onNameSubmit={handleNameSubmit} />;
-  }
 
   if (currentScreen === 'joinRoom') {
     return <IDInputForm onSubmit={handleRoomIdSubmit} onBack={handleBack} />;

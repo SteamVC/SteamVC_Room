@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Backend
+/backend/api-server/main
+/backend/sfu-server/dist
+/backend/sfu-server/node_modules
