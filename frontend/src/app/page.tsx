@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { StartScreen } from '@/app/start/StartScreen';
 import { Home } from '@/app/home/Home';
 import { IDInputForm } from '@/app/form/IDInputForm';
 import { getRoomService } from '@/api/generated/room-service/room-service';
@@ -70,10 +69,6 @@ export default function Page() {
   const handleBack = () => {
     setCurrentScreen('home');
   };
-
-  if (currentScreen === 'start') {
-    return <StartScreen onNameSubmit={handleNameSubmit} />;
-  }
 
   if (currentScreen === 'joinRoom') {
     return <IDInputForm onSubmit={handleRoomIdSubmit} onBack={handleBack} />;
