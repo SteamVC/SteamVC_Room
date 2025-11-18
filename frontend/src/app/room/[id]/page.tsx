@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { io, Socket } from 'socket.io-client';
 import { Device, types } from 'mediasoup-client';
 import { Room } from '@/app/room/Room';
+import { useRoomWebSocket } from '@/hooks/useRoomWebSocket';
 
 type RtpCapabilities = types.RtpCapabilities;
 type Transport = types.Transport;
@@ -45,6 +46,20 @@ export default function RoomPage() {
   const producerTransportRef = useRef<Transport | null>(null);
   const consumerTransportRef = useRef<Transport | null>(null);
   const audioProducerRef = useRef<Producer | null>(null);
+
+  // API ServerへのWebSocket接続（ユーザー退出通知用）
+  const { notifyLeave } = useRoomWebSocket({
+    roomId,
+    userId: 'temp-user-id', // TODO: 実際のユーザーIDに置き換える
+    onUserLeft: (payload) => {
+      console.log('User left:', payload);
+      // 参加者リストから削除
+      setParticipants(prev => prev.filter(p => p.id !== payload.userId));
+    },
+    onError: (error) => {
+      console.error('WebSocket error:', error);
+    }
+  });
 
   const connectToRoom = async () => {
     const socket = io('http://localhost:3000');
@@ -253,9 +268,20 @@ export default function RoomPage() {
   };
 
   const handleLeave = () => {
+    // WebSocketでAPI Serverに退出を通知
+    notifyLeave('User Name', 'User Image URL'); // TODO: 実際のユーザー名と画像URLに置き換える
+
+    // MediaSoupサーバーから切断
     if (socketRef.current) {
       socketRef.current.disconnect();
     }
+
+    // 音声プロデューサーをクローズ
+    if (audioProducerRef.current) {
+      audioProducerRef.current.close();
+    }
+
+    // ホームページに戻る
     router.push('/');
   };
 

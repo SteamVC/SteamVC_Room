@@ -54,7 +54,8 @@ func main() {
 	idg := service.NewRoomIDGenerator()
 	svc := service.NewRoomService(rr, idg, ttlSec)
 	h := handlers.NewRoomHandler(svc)
-	router := httpx.NewRouter(h)
+	wsHandler := handlers.NewWebSocketHandler(svc)
+	router := httpx.NewRouter(h, wsHandler)
 
 	srv := &http.Server{
 		Addr:              addr,
