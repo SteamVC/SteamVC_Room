@@ -24,8 +24,8 @@ const (
 
 type User struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserName      string                 `protobuf:"bytes,1,opt,name=user_name,json=userName,proto3" json:"user_name,omitempty"`
-	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	UserName      string                 `protobuf:"bytes,2,opt,name=user_name,json=userName,proto3" json:"user_name,omitempty"`
 	UserImage     string                 `protobuf:"bytes,3,opt,name=user_image,json=userImage,proto3" json:"user_image,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -61,16 +61,16 @@ func (*User) Descriptor() ([]byte, []int) {
 	return file_room_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *User) GetUserName() string {
+func (x *User) GetUserId() string {
 	if x != nil {
-		return x.UserName
+		return x.UserId
 	}
 	return ""
 }
 
-func (x *User) GetUserId() string {
+func (x *User) GetUserName() string {
 	if x != nil {
-		return x.UserId
+		return x.UserName
 	}
 	return ""
 }
@@ -85,7 +85,8 @@ func (x *User) GetUserImage() string {
 type Room struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	RoomId        string                 `protobuf:"bytes,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
-	Users         []*User                `protobuf:"bytes,2,rep,name=users,proto3" json:"users,omitempty"`
+	OwnerId       string                 `protobuf:"bytes,2,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`
+	CreatedAt     int64                  `protobuf:"varint,3,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -127,78 +128,78 @@ func (x *Room) GetRoomId() string {
 	return ""
 }
 
-func (x *Room) GetUsers() []*User {
+func (x *Room) GetOwnerId() string {
 	if x != nil {
-		return x.Users
-	}
-	return nil
-}
-
-type GetRoomRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	RoomId        string                 `protobuf:"bytes,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GetRoomRequest) Reset() {
-	*x = GetRoomRequest{}
-	mi := &file_room_proto_msgTypes[2]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetRoomRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetRoomRequest) ProtoMessage() {}
-
-func (x *GetRoomRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_room_proto_msgTypes[2]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetRoomRequest.ProtoReflect.Descriptor instead.
-func (*GetRoomRequest) Descriptor() ([]byte, []int) {
-	return file_room_proto_rawDescGZIP(), []int{2}
-}
-
-func (x *GetRoomRequest) GetRoomId() string {
-	if x != nil {
-		return x.RoomId
+		return x.OwnerId
 	}
 	return ""
 }
 
-type GetRoomResponse struct {
+func (x *Room) GetCreatedAt() int64 {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return 0
+}
+
+// ヘルスチェック
+type HealthCheckRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Room          *Room                  `protobuf:"bytes,1,opt,name=room,proto3" json:"room,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetRoomResponse) Reset() {
-	*x = GetRoomResponse{}
+func (x *HealthCheckRequest) Reset() {
+	*x = HealthCheckRequest{}
+	mi := &file_room_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HealthCheckRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HealthCheckRequest) ProtoMessage() {}
+
+func (x *HealthCheckRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_room_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HealthCheckRequest.ProtoReflect.Descriptor instead.
+func (*HealthCheckRequest) Descriptor() ([]byte, []int) {
+	return file_room_proto_rawDescGZIP(), []int{2}
+}
+
+type HealthCheckResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Status        string                 `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HealthCheckResponse) Reset() {
+	*x = HealthCheckResponse{}
 	mi := &file_room_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetRoomResponse) String() string {
+func (x *HealthCheckResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetRoomResponse) ProtoMessage() {}
+func (*HealthCheckResponse) ProtoMessage() {}
 
-func (x *GetRoomResponse) ProtoReflect() protoreflect.Message {
+func (x *HealthCheckResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_room_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -210,22 +211,24 @@ func (x *GetRoomResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetRoomResponse.ProtoReflect.Descriptor instead.
-func (*GetRoomResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use HealthCheckResponse.ProtoReflect.Descriptor instead.
+func (*HealthCheckResponse) Descriptor() ([]byte, []int) {
 	return file_room_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *GetRoomResponse) GetRoom() *Room {
+func (x *HealthCheckResponse) GetStatus() string {
 	if x != nil {
-		return x.Room
+		return x.Status
 	}
-	return nil
+	return ""
 }
 
+// ルーム作成
 type CreateRoomRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 	UserName      string                 `protobuf:"bytes,2,opt,name=user_name,json=userName,proto3" json:"user_name,omitempty"`
-	UserId        string                 `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	UserImage     string                 `protobuf:"bytes,3,opt,name=user_image,json=userImage,proto3" json:"user_image,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -260,13 +263,6 @@ func (*CreateRoomRequest) Descriptor() ([]byte, []int) {
 	return file_room_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *CreateRoomRequest) GetUserName() string {
-	if x != nil {
-		return x.UserName
-	}
-	return ""
-}
-
 func (x *CreateRoomRequest) GetUserId() string {
 	if x != nil {
 		return x.UserId
@@ -274,11 +270,24 @@ func (x *CreateRoomRequest) GetUserId() string {
 	return ""
 }
 
+func (x *CreateRoomRequest) GetUserName() string {
+	if x != nil {
+		return x.UserName
+	}
+	return ""
+}
+
+func (x *CreateRoomRequest) GetUserImage() string {
+	if x != nil {
+		return x.UserImage
+	}
+	return ""
+}
+
 type CreateRoomResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
-	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
-	RoomId        string                 `protobuf:"bytes,3,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
+	RoomId        string                 `protobuf:"bytes,2,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -320,13 +329,6 @@ func (x *CreateRoomResponse) GetSuccess() bool {
 	return false
 }
 
-func (x *CreateRoomResponse) GetMessage() string {
-	if x != nil {
-		return x.Message
-	}
-	return ""
-}
-
 func (x *CreateRoomResponse) GetRoomId() string {
 	if x != nil {
 		return x.RoomId
@@ -334,16 +336,115 @@ func (x *CreateRoomResponse) GetRoomId() string {
 	return ""
 }
 
-type DeleteRoomRequest struct {
+// ルーム取得
+type GetRoomRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	RoomId        string                 `protobuf:"bytes,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
+func (x *GetRoomRequest) Reset() {
+	*x = GetRoomRequest{}
+	mi := &file_room_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetRoomRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetRoomRequest) ProtoMessage() {}
+
+func (x *GetRoomRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_room_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetRoomRequest.ProtoReflect.Descriptor instead.
+func (*GetRoomRequest) Descriptor() ([]byte, []int) {
+	return file_room_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *GetRoomRequest) GetRoomId() string {
+	if x != nil {
+		return x.RoomId
+	}
+	return ""
+}
+
+type GetRoomResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Room          *Room                  `protobuf:"bytes,1,opt,name=room,proto3" json:"room,omitempty"`
+	Users         []*User                `protobuf:"bytes,2,rep,name=users,proto3" json:"users,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetRoomResponse) Reset() {
+	*x = GetRoomResponse{}
+	mi := &file_room_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetRoomResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetRoomResponse) ProtoMessage() {}
+
+func (x *GetRoomResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_room_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetRoomResponse.ProtoReflect.Descriptor instead.
+func (*GetRoomResponse) Descriptor() ([]byte, []int) {
+	return file_room_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *GetRoomResponse) GetRoom() *Room {
+	if x != nil {
+		return x.Room
+	}
+	return nil
+}
+
+func (x *GetRoomResponse) GetUsers() []*User {
+	if x != nil {
+		return x.Users
+	}
+	return nil
+}
+
+// ルーム削除
+type DeleteRoomRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RoomId        string                 `protobuf:"bytes,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
 func (x *DeleteRoomRequest) Reset() {
 	*x = DeleteRoomRequest{}
-	mi := &file_room_proto_msgTypes[6]
+	mi := &file_room_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -355,7 +456,7 @@ func (x *DeleteRoomRequest) String() string {
 func (*DeleteRoomRequest) ProtoMessage() {}
 
 func (x *DeleteRoomRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_room_proto_msgTypes[6]
+	mi := &file_room_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -368,10 +469,184 @@ func (x *DeleteRoomRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteRoomRequest.ProtoReflect.Descriptor instead.
 func (*DeleteRoomRequest) Descriptor() ([]byte, []int) {
-	return file_room_proto_rawDescGZIP(), []int{6}
+	return file_room_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *DeleteRoomRequest) GetRoomId() string {
+	if x != nil {
+		return x.RoomId
+	}
+	return ""
+}
+
+func (x *DeleteRoomRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+// ルーム参加
+type JoinRoomRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RoomId        string                 `protobuf:"bytes,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	UserName      string                 `protobuf:"bytes,3,opt,name=user_name,json=userName,proto3" json:"user_name,omitempty"`
+	UserImage     string                 `protobuf:"bytes,4,opt,name=user_image,json=userImage,proto3" json:"user_image,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *JoinRoomRequest) Reset() {
+	*x = JoinRoomRequest{}
+	mi := &file_room_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *JoinRoomRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*JoinRoomRequest) ProtoMessage() {}
+
+func (x *JoinRoomRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_room_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use JoinRoomRequest.ProtoReflect.Descriptor instead.
+func (*JoinRoomRequest) Descriptor() ([]byte, []int) {
+	return file_room_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *JoinRoomRequest) GetRoomId() string {
+	if x != nil {
+		return x.RoomId
+	}
+	return ""
+}
+
+func (x *JoinRoomRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *JoinRoomRequest) GetUserName() string {
+	if x != nil {
+		return x.UserName
+	}
+	return ""
+}
+
+func (x *JoinRoomRequest) GetUserImage() string {
+	if x != nil {
+		return x.UserImage
+	}
+	return ""
+}
+
+// ルーム退出
+type LeaveRoomRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RoomId        string                 `protobuf:"bytes,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LeaveRoomRequest) Reset() {
+	*x = LeaveRoomRequest{}
+	mi := &file_room_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LeaveRoomRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LeaveRoomRequest) ProtoMessage() {}
+
+func (x *LeaveRoomRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_room_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LeaveRoomRequest.ProtoReflect.Descriptor instead.
+func (*LeaveRoomRequest) Descriptor() ([]byte, []int) {
+	return file_room_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *LeaveRoomRequest) GetRoomId() string {
+	if x != nil {
+		return x.RoomId
+	}
+	return ""
+}
+
+func (x *LeaveRoomRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+// ルームタッチ
+type TouchRoomRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	RoomId        string                 `protobuf:"bytes,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TouchRoomRequest) Reset() {
+	*x = TouchRoomRequest{}
+	mi := &file_room_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TouchRoomRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TouchRoomRequest) ProtoMessage() {}
+
+func (x *TouchRoomRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_room_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TouchRoomRequest.ProtoReflect.Descriptor instead.
+func (*TouchRoomRequest) Descriptor() ([]byte, []int) {
+	return file_room_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *TouchRoomRequest) GetRoomId() string {
 	if x != nil {
 		return x.RoomId
 	}
@@ -384,33 +659,56 @@ const file_room_proto_rawDesc = "" +
 	"\n" +
 	"\n" +
 	"room.proto\x12\x0fsteamvc.room.v1\x1a\fcommon.proto\x1a\x1cgoogle/api/annotations.proto\"[\n" +
-	"\x04User\x12\x1b\n" +
-	"\tuser_name\x18\x01 \x01(\tR\buserName\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x1d\n" +
+	"\x04User\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1b\n" +
+	"\tuser_name\x18\x02 \x01(\tR\buserName\x12\x1d\n" +
 	"\n" +
-	"user_image\x18\x03 \x01(\tR\tuserImage\"L\n" +
+	"user_image\x18\x03 \x01(\tR\tuserImage\"Y\n" +
 	"\x04Room\x12\x17\n" +
-	"\aroom_id\x18\x01 \x01(\tR\x06roomId\x12+\n" +
-	"\x05users\x18\x02 \x03(\v2\x15.steamvc.room.v1.UserR\x05users\")\n" +
-	"\x0eGetRoomRequest\x12\x17\n" +
-	"\aroom_id\x18\x01 \x01(\tR\x06roomId\"<\n" +
-	"\x0fGetRoomResponse\x12)\n" +
-	"\x04room\x18\x01 \x01(\v2\x15.steamvc.room.v1.RoomR\x04room\"I\n" +
-	"\x11CreateRoomRequest\x12\x1b\n" +
-	"\tuser_name\x18\x02 \x01(\tR\buserName\x12\x17\n" +
-	"\auser_id\x18\x03 \x01(\tR\x06userId\"a\n" +
+	"\aroom_id\x18\x01 \x01(\tR\x06roomId\x12\x19\n" +
+	"\bowner_id\x18\x02 \x01(\tR\aownerId\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\x03 \x01(\x03R\tcreatedAt\"\x14\n" +
+	"\x12HealthCheckRequest\"-\n" +
+	"\x13HealthCheckResponse\x12\x16\n" +
+	"\x06status\x18\x01 \x01(\tR\x06status\"h\n" +
+	"\x11CreateRoomRequest\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1b\n" +
+	"\tuser_name\x18\x02 \x01(\tR\buserName\x12\x1d\n" +
+	"\n" +
+	"user_image\x18\x03 \x01(\tR\tuserImage\"G\n" +
 	"\x12CreateRoomResponse\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\x12\x17\n" +
-	"\aroom_id\x18\x03 \x01(\tR\x06roomId\",\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x17\n" +
+	"\aroom_id\x18\x02 \x01(\tR\x06roomId\")\n" +
+	"\x0eGetRoomRequest\x12\x17\n" +
+	"\aroom_id\x18\x01 \x01(\tR\x06roomId\"i\n" +
+	"\x0fGetRoomResponse\x12)\n" +
+	"\x04room\x18\x01 \x01(\v2\x15.steamvc.room.v1.RoomR\x04room\x12+\n" +
+	"\x05users\x18\x02 \x03(\v2\x15.steamvc.room.v1.UserR\x05users\"E\n" +
 	"\x11DeleteRoomRequest\x12\x17\n" +
-	"\aroom_id\x18\x01 \x01(\tR\x06roomId2\xf0\x02\n" +
-	"\vRoomService\x12l\n" +
-	"\aGetRoom\x12\x1f.steamvc.room.v1.GetRoomRequest\x1a .steamvc.room.v1.GetRoomResponse\"\x1e\x82\xd3\xe4\x93\x02\x18\x12\x16/api/v1/room/{room_id}\x12u\n" +
+	"\aroom_id\x18\x01 \x01(\tR\x06roomId\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\"\x7f\n" +
+	"\x0fJoinRoomRequest\x12\x17\n" +
+	"\aroom_id\x18\x01 \x01(\tR\x06roomId\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x1b\n" +
+	"\tuser_name\x18\x03 \x01(\tR\buserName\x12\x1d\n" +
 	"\n" +
-	"CreateRoom\x12\".steamvc.room.v1.CreateRoomRequest\x1a#.steamvc.room.v1.CreateRoomResponse\"\x1e\x82\xd3\xe4\x93\x02\x18:\x01*\"\x13/api/v1/room/create\x12|\n" +
+	"user_image\x18\x04 \x01(\tR\tuserImage\"D\n" +
+	"\x10LeaveRoomRequest\x12\x17\n" +
+	"\aroom_id\x18\x01 \x01(\tR\x06roomId\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userId\"+\n" +
+	"\x10TouchRoomRequest\x12\x17\n" +
+	"\aroom_id\x18\x01 \x01(\tR\x06roomId2\xd7\x06\n" +
+	"\vRoomService\x12q\n" +
+	"\vHealthCheck\x12#.steamvc.room.v1.HealthCheckRequest\x1a$.steamvc.room.v1.HealthCheckResponse\"\x17\x82\xd3\xe4\x93\x02\x11\x12\x0f/api/v1/healthz\x12u\n" +
 	"\n" +
-	"DeleteRoom\x12\".steamvc.room.v1.DeleteRoomRequest\x1a#.steamvc.common.v1.StandardResponse\"%\x82\xd3\xe4\x93\x02\x1f*\x1d/api/v1/room/delete/{room_id}B3Z1github.com/SteamVC/SteamVC_Room/backend/api/pd;pdb\x06proto3"
+	"CreateRoom\x12\".steamvc.room.v1.CreateRoomRequest\x1a#.steamvc.room.v1.CreateRoomResponse\"\x1e\x82\xd3\xe4\x93\x02\x18:\x01*\"\x13/api/v1/room/create\x12l\n" +
+	"\aGetRoom\x12\x1f.steamvc.room.v1.GetRoomRequest\x1a .steamvc.room.v1.GetRoomResponse\"\x1e\x82\xd3\xe4\x93\x02\x18\x12\x16/api/v1/room/{room_id}\x12|\n" +
+	"\n" +
+	"DeleteRoom\x12\".steamvc.room.v1.DeleteRoomRequest\x1a#.steamvc.common.v1.StandardResponse\"%\x82\xd3\xe4\x93\x02\x1f*\x1d/api/v1/room/delete/{room_id}\x12y\n" +
+	"\bJoinRoom\x12 .steamvc.room.v1.JoinRoomRequest\x1a#.steamvc.common.v1.StandardResponse\"&\x82\xd3\xe4\x93\x02 :\x01*\"\x1b/api/v1/room/{room_id}/join\x12|\n" +
+	"\tLeaveRoom\x12!.steamvc.room.v1.LeaveRoomRequest\x1a#.steamvc.common.v1.StandardResponse\"'\x82\xd3\xe4\x93\x02!:\x01*\"\x1c/api/v1/room/{room_id}/leave\x12y\n" +
+	"\tTouchRoom\x12!.steamvc.room.v1.TouchRoomRequest\x1a#.steamvc.common.v1.StandardResponse\"$\x82\xd3\xe4\x93\x02\x1e\"\x1c/api/v1/room/{room_id}/touchB3Z1github.com/SteamVC/SteamVC_Room/backend/api/pd;pdb\x06proto3"
 
 var (
 	file_room_proto_rawDescOnce sync.Once
@@ -424,31 +722,44 @@ func file_room_proto_rawDescGZIP() []byte {
 	return file_room_proto_rawDescData
 }
 
-var file_room_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_room_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_room_proto_goTypes = []any{
-	(*User)(nil),               // 0: steamvc.room.v1.User
-	(*Room)(nil),               // 1: steamvc.room.v1.Room
-	(*GetRoomRequest)(nil),     // 2: steamvc.room.v1.GetRoomRequest
-	(*GetRoomResponse)(nil),    // 3: steamvc.room.v1.GetRoomResponse
-	(*CreateRoomRequest)(nil),  // 4: steamvc.room.v1.CreateRoomRequest
-	(*CreateRoomResponse)(nil), // 5: steamvc.room.v1.CreateRoomResponse
-	(*DeleteRoomRequest)(nil),  // 6: steamvc.room.v1.DeleteRoomRequest
-	(*StandardResponse)(nil),   // 7: steamvc.common.v1.StandardResponse
+	(*User)(nil),                // 0: steamvc.room.v1.User
+	(*Room)(nil),                // 1: steamvc.room.v1.Room
+	(*HealthCheckRequest)(nil),  // 2: steamvc.room.v1.HealthCheckRequest
+	(*HealthCheckResponse)(nil), // 3: steamvc.room.v1.HealthCheckResponse
+	(*CreateRoomRequest)(nil),   // 4: steamvc.room.v1.CreateRoomRequest
+	(*CreateRoomResponse)(nil),  // 5: steamvc.room.v1.CreateRoomResponse
+	(*GetRoomRequest)(nil),      // 6: steamvc.room.v1.GetRoomRequest
+	(*GetRoomResponse)(nil),     // 7: steamvc.room.v1.GetRoomResponse
+	(*DeleteRoomRequest)(nil),   // 8: steamvc.room.v1.DeleteRoomRequest
+	(*JoinRoomRequest)(nil),     // 9: steamvc.room.v1.JoinRoomRequest
+	(*LeaveRoomRequest)(nil),    // 10: steamvc.room.v1.LeaveRoomRequest
+	(*TouchRoomRequest)(nil),    // 11: steamvc.room.v1.TouchRoomRequest
+	(*StandardResponse)(nil),    // 12: steamvc.common.v1.StandardResponse
 }
 var file_room_proto_depIdxs = []int32{
-	0, // 0: steamvc.room.v1.Room.users:type_name -> steamvc.room.v1.User
-	1, // 1: steamvc.room.v1.GetRoomResponse.room:type_name -> steamvc.room.v1.Room
-	2, // 2: steamvc.room.v1.RoomService.GetRoom:input_type -> steamvc.room.v1.GetRoomRequest
-	4, // 3: steamvc.room.v1.RoomService.CreateRoom:input_type -> steamvc.room.v1.CreateRoomRequest
-	6, // 4: steamvc.room.v1.RoomService.DeleteRoom:input_type -> steamvc.room.v1.DeleteRoomRequest
-	3, // 5: steamvc.room.v1.RoomService.GetRoom:output_type -> steamvc.room.v1.GetRoomResponse
-	5, // 6: steamvc.room.v1.RoomService.CreateRoom:output_type -> steamvc.room.v1.CreateRoomResponse
-	7, // 7: steamvc.room.v1.RoomService.DeleteRoom:output_type -> steamvc.common.v1.StandardResponse
-	5, // [5:8] is the sub-list for method output_type
-	2, // [2:5] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	1,  // 0: steamvc.room.v1.GetRoomResponse.room:type_name -> steamvc.room.v1.Room
+	0,  // 1: steamvc.room.v1.GetRoomResponse.users:type_name -> steamvc.room.v1.User
+	2,  // 2: steamvc.room.v1.RoomService.HealthCheck:input_type -> steamvc.room.v1.HealthCheckRequest
+	4,  // 3: steamvc.room.v1.RoomService.CreateRoom:input_type -> steamvc.room.v1.CreateRoomRequest
+	6,  // 4: steamvc.room.v1.RoomService.GetRoom:input_type -> steamvc.room.v1.GetRoomRequest
+	8,  // 5: steamvc.room.v1.RoomService.DeleteRoom:input_type -> steamvc.room.v1.DeleteRoomRequest
+	9,  // 6: steamvc.room.v1.RoomService.JoinRoom:input_type -> steamvc.room.v1.JoinRoomRequest
+	10, // 7: steamvc.room.v1.RoomService.LeaveRoom:input_type -> steamvc.room.v1.LeaveRoomRequest
+	11, // 8: steamvc.room.v1.RoomService.TouchRoom:input_type -> steamvc.room.v1.TouchRoomRequest
+	3,  // 9: steamvc.room.v1.RoomService.HealthCheck:output_type -> steamvc.room.v1.HealthCheckResponse
+	5,  // 10: steamvc.room.v1.RoomService.CreateRoom:output_type -> steamvc.room.v1.CreateRoomResponse
+	7,  // 11: steamvc.room.v1.RoomService.GetRoom:output_type -> steamvc.room.v1.GetRoomResponse
+	12, // 12: steamvc.room.v1.RoomService.DeleteRoom:output_type -> steamvc.common.v1.StandardResponse
+	12, // 13: steamvc.room.v1.RoomService.JoinRoom:output_type -> steamvc.common.v1.StandardResponse
+	12, // 14: steamvc.room.v1.RoomService.LeaveRoom:output_type -> steamvc.common.v1.StandardResponse
+	12, // 15: steamvc.room.v1.RoomService.TouchRoom:output_type -> steamvc.common.v1.StandardResponse
+	9,  // [9:16] is the sub-list for method output_type
+	2,  // [2:9] is the sub-list for method input_type
+	2,  // [2:2] is the sub-list for extension type_name
+	2,  // [2:2] is the sub-list for extension extendee
+	0,  // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_room_proto_init() }
@@ -463,7 +774,7 @@ func file_room_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_room_proto_rawDesc), len(file_room_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -74,4 +74,4 @@ docker run -d -p 8080:8080 `
   swaggerapi/swagger-ui
 
 ### orvalのインストール
-bun install @openapitools/openapi-generator-cli -g
+openapi-generator-cli generate -i backend/api/docs/room.swagger.json -g typescript-axios -o frontend/src/api/generated

@@ -73,20 +73,14 @@ SteamVC_Room/
 
 ## 実装状況
 
-### 完了
-- [x] Go API Server（ルーム管理、Redis連携）
-- [x] Node.js SFU Server（Mediasoup WebRTC）
-- [x] フロントエンド（ルーム作成・参加UI）
-- [x] WebSocket通信
-- [x] WebRTC音声ストリーム
-- [x] Docker環境
+### 通信手段
+===HTTP===
+ルーム作成/削除/検索 
+SFUServerへのルーム作成通知
 
-### 今後の実装
-- [ ] Python音声変換サーバー（StreamVC/Seed-VC）
-- [ ] AI音声変換パイプライン
-- [ ] ユーザー認証
-- [ ] 声質ランダムシャッフル機能
-
+===Websocket===
+参加者の参加/退出管理 
+参加者状態の更新 (マイクON/OFF、接続状態など) 
 ## ライセンス
 
 MIT
