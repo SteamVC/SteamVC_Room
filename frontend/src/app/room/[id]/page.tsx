@@ -116,6 +116,17 @@ export default function RoomPage() {
         if (response.data.room?.ownerId) {
           setOwnerId(response.data.room.ownerId);
         }
+
+        // 参加者リストを設定
+        if (response.data.users && Array.isArray(response.data.users)) {
+          const participantsList: Participant[] = response.data.users.map((user: any) => ({
+            id: user.userId || '',
+            name: user.userName || '名前なし',
+            audioEnabled: false
+          }));
+          setParticipants(participantsList);
+          console.log('Loaded participants:', participantsList);
+        }
       } catch (error) {
         console.error('Failed to fetch room info:', error);
       }

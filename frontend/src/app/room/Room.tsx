@@ -26,11 +26,15 @@ export function Room({
 }: RoomProps) {
   const [showParticipantsList, setShowParticipantsList] = useState(false);
 
-  // 参加者が4人未満の場合、空のスロットを追加
-  const participantSlots = [...participants];
-  while (participantSlots.length < 4) {
-    participantSlots.push({ id: `empty-${participantSlots.length}`, name: undefined });
-  }
+  // 参加者数に応じてグリッドのクラスを決定
+  const getGridClass = () => {
+    const count = participants.length;
+    if (count === 0) return 'grid-cols-1';
+    if (count === 1) return 'grid-cols-1';
+    if (count === 2) return 'grid-cols-2';
+    if (count === 3) return 'grid-cols-2';
+    return 'grid-cols-2'; // 4人以上
+  };
 
   return (
     <div className="flex flex-col h-screen bg-gradient-to-br from-blue-500 to-purple-600">
@@ -54,32 +58,35 @@ export function Room({
 
       {/* 参加者グリッド */}
       <div className="flex-1 p-6">
-        <div className="h-full grid grid-cols-2 gap-4">
-          {participantSlots.slice(0, 4).map((participant, index) => (
-            <Card
-              key={participant.id}
-              className={`${
-                participant.name
-                  ? 'bg-gray-200'
-                  : 'bg-gray-300 border-2 border-dashed border-gray-400'
-              }`}
-            >
-              <CardContent className="flex items-center justify-center h-full p-0">
-                {participant.name ? (
-                  <div className="text-center">
-                    <div className="w-24 h-24 bg-gray-400 rounded-lg mx-auto mb-2" />
-                    <p className="text-gray-800 font-medium">ランダム画像</p>
-                  </div>
-                ) : (
-                  <div className="text-center text-gray-500">
-                    <div className="w-24 h-24 bg-gray-400 rounded-lg mx-auto mb-2" />
-                    <p>ランダム画像</p>
-                  </div>
-                )}
+        {participants.length === 0 ? (
+          <div className="h-full flex items-center justify-center">
+            <Card className="bg-gray-300 border-2 border-dashed border-gray-400 p-8">
+              <CardContent className="text-center text-gray-500">
+                <Users className="h-16 w-16 mx-auto mb-4 opacity-50" />
+                <p className="text-lg">参加者がいません</p>
+                <p className="text-sm mt-2">誰かが参加するまでお待ちください</p>
               </CardContent>
             </Card>
-          ))}
-        </div>
+          </div>
+        ) : (
+          <div className={`h-full grid ${getGridClass()} gap-4`}>
+            {participants.map((participant) => (
+              <Card
+                key={participant.id}
+                className="bg-gray-200"
+              >
+                <CardContent className="flex items-center justify-center h-full p-0">
+                  <div className="text-center">
+                    <div className="w-24 h-24 bg-gray-400 rounded-lg mx-auto mb-2" />
+                    <p className="text-gray-800 font-medium">
+                      {participant.name || 'ランダム画像'}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* コントロールバー */}
