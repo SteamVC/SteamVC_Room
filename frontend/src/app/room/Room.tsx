@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Mic, MicOff, Headphones, Users, X } from 'lucide-react';
+import { MinidenticonImg } from '@/components/MinidenticonImg';
 
 interface RoomProps {
   roomId: string;
@@ -77,9 +78,16 @@ export function Room({
               >
                 <CardContent className="flex items-center justify-center h-full p-0">
                   <div className="text-center">
-                    <div className="w-24 h-24 bg-gray-400 rounded-lg mx-auto mb-2" />
+                    <MinidenticonImg
+                      username={participant.id}
+                      saturation="60"
+                      lightness="50"
+                      width={96}
+                      height={96}
+                      className="rounded-lg mx-auto mb-2"
+                    />
                     <p className="text-gray-800 font-medium">
-                      {participant.name || 'ランダム画像'}
+                      {participant.name || '名前なし'}
                     </p>
                   </div>
                 </CardContent>
@@ -152,7 +160,14 @@ export function Room({
                       key={participant.id}
                       className="flex items-center gap-3 p-3 bg-gray-100 rounded-lg"
                     >
-                      <div className="w-10 h-10 bg-gray-400 rounded-full flex-shrink-0" />
+                      <MinidenticonImg
+                        username={participant.id}
+                        saturation="60"
+                        lightness="50"
+                        width={40}
+                        height={40}
+                        className="rounded-full flex-shrink-0"
+                      />
                       <div className="flex-1">
                         <p className="font-medium text-gray-800">
                           {participant.name || '名前なし'}
