@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { io, Socket } from 'socket.io-client';
 import { Device, types } from 'mediasoup-client';
 import { Room } from '@/app/room/Room';
+import { RoomServiceApi, Configuration } from '@/api/generated';
 
 type RtpCapabilities = types.RtpCapabilities;
 type Transport = types.Transport;
@@ -39,6 +40,8 @@ export default function RoomPage() {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  const [ownerId, setOwnerId] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string>(`user_${Date.now()}`);
 
   const socketRef = useRef<Socket | null>(null);
   const deviceRef = useRef<Device | null>(null);
@@ -87,6 +90,24 @@ export default function RoomPage() {
   };
 
   useEffect(() => {
+    // ルーム情報を取得
+    const fetchRoomInfo = async () => {
+      try {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+        const config = new Configuration({ basePath: apiUrl });
+        const roomService = new RoomServiceApi(config);
+        const response = await roomService.roomServiceGetRoom(roomId);
+
+        if (response.data.room?.ownerId) {
+          setOwnerId(response.data.room.ownerId);
+        }
+      } catch (error) {
+        console.error('Failed to fetch room info:', error);
+      }
+    };
+
+    fetchRoomInfo();
+
     // Socket.IO接続
     connectToRoom();
 
@@ -252,11 +273,30 @@ export default function RoomPage() {
     }
   };
 
-  const handleLeave = () => {
-    if (socketRef.current) {
-      socketRef.current.disconnect();
+  const handleLeave = async () => {
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+      const config = new Configuration({ basePath: apiUrl });
+      const roomService = new RoomServiceApi(config);
+
+      // ホストの場合はルームを削除
+      if (ownerId && userId === ownerId) {
+        await roomService.roomServiceDeleteRoom(roomId, userId);
+        console.log('Room deleted by owner');
+      } else {
+        // 一般参加者の場合はleave APIを呼ぶ
+        await roomService.roomServiceLeaveRoom(roomId, { userId });
+        console.log('Left room as participant');
+      }
+    } catch (error) {
+      console.error('Failed to leave/delete room:', error);
+    } finally {
+      // WebSocket切断
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
+      router.push('/');
     }
-    router.push('/');
   };
 
   return (
