@@ -18,3 +18,15 @@ func NewULID() string {
 	defer entropyMu.Unlock()
 	return ulid.MustNew(ulid.Timestamp(time.Now().UTC()), entropy).String()
 }
+
+func NewRoomID() (string, error) {
+	const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	b := make([]byte, 7)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	for i := range b {
+		b[i] = chars[b[i]%byte(len(chars))]
+	}
+	return string(b), nil
+}
