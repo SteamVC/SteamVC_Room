@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { io, Socket } from 'socket.io-client';
 import { Device, types } from 'mediasoup-client';
 import { Room } from '@/app/room/Room';
@@ -36,24 +36,44 @@ interface SocketResponse {
 export default function RoomPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const roomId = params.id as string;
+
+  // URLパラメータからuserIdを取得、なければ生成
+  const userIdFromUrl = searchParams.get('userId');
 
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [ownerId, setOwnerId] = useState<string | null>(null);
-  const [userId, setUserId] = useState<string>(`user_${Date.now()}`);
+  const [userId, setUserId] = useState<string>(userIdFromUrl || `user_${Date.now()}`);
 
   const socketRef = useRef<Socket | null>(null);
   const deviceRef = useRef<Device | null>(null);
   const producerTransportRef = useRef<Transport | null>(null);
   const consumerTransportRef = useRef<Transport | null>(null);
   const audioProducerRef = useRef<Producer | null>(null);
+  const hasInitializedRef = useRef(false);
 
-  // API ServerへのWebSocket接続（ユーザー退出通知用）
+  // API ServerへのWebSocket接続（ユーザー参加/退出通知用）
   const { notifyLeave } = useRoomWebSocket({
     roomId,
-    userId: 'temp-user-id', // TODO: 実際のユーザーIDに置き換える
+    userId: userId,
+    onUserJoined: (payload) => {
+      console.log('User joined:', payload);
+      // 参加者リストに追加
+      setParticipants(prev => {
+        // 既に存在する場合は追加しない
+        if (prev.some(p => p.id === payload.userId)) {
+          return prev;
+        }
+        return [...prev, {
+          id: payload.userId,
+          name: payload.userName || '名前なし',
+          audioEnabled: false
+        }];
+      });
+    },
     onUserLeft: (payload) => {
       console.log('User left:', payload);
       // 参加者リストから削除
@@ -105,12 +125,19 @@ export default function RoomPage() {
   };
 
   useEffect(() => {
-    // ルーム情報を取得
-    const fetchRoomInfo = async () => {
+    // React Strict Modeでの重複実行を防ぐ
+    if (hasInitializedRef.current) {
+      return;
+    }
+    hasInitializedRef.current = true;
+
+    const initializeRoom = async () => {
       try {
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
         const config = new Configuration({ basePath: apiUrl });
         const roomService = new RoomServiceApi(config);
+
+        // ルーム情報を取得
         const response = await roomService.roomServiceGetRoom(roomId);
 
         if (response.data.room?.ownerId) {
@@ -124,15 +151,41 @@ export default function RoomPage() {
             name: user.userName || '名前なし',
             audioEnabled: false
           }));
-          setParticipants(participantsList);
-          console.log('Loaded participants:', participantsList);
+
+          // 自分が既に参加者リストに含まれているかチェック
+          const isAlreadyJoined = participantsList.some(p => p.id === userId);
+          console.log('Current userId:', userId);
+          console.log('Participants in room:', participantsList.map(p => p.id));
+          console.log('isAlreadyJoined:', isAlreadyJoined);
+
+          if (!isAlreadyJoined) {
+            // まだ参加していない場合のみjoinRoomを呼ぶ
+            await roomService.roomServiceJoinRoom(roomId, { userId });
+            console.log('Joined room:', roomId, 'with userId:', userId);
+
+            // 再度参加者リストを取得
+            const updatedResponse = await roomService.roomServiceGetRoom(roomId);
+            if (updatedResponse.data.users && Array.isArray(updatedResponse.data.users)) {
+              const updatedParticipants: Participant[] = updatedResponse.data.users.map((user: any) => ({
+                id: user.userId || '',
+                name: user.userName || '名前なし',
+                audioEnabled: false
+              }));
+              setParticipants(updatedParticipants);
+              console.log('Loaded participants after join:', updatedParticipants);
+            }
+          } else {
+            console.log('Already in room:', roomId, 'with userId:', userId);
+            setParticipants(participantsList);
+            console.log('Loaded participants:', participantsList);
+          }
         }
       } catch (error) {
-        console.error('Failed to fetch room info:', error);
+        console.error('Failed to join or fetch room info:', error);
       }
     };
 
-    fetchRoomInfo();
+    initializeRoom();
 
     // Socket.IO接続
     connectToRoom();

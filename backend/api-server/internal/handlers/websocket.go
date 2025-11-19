@@ -56,6 +56,13 @@ type LeavePayload struct {
 	UserImage string `json:"userImage,omitempty"`
 }
 
+// JoinPayload はユーザー参加時のペイロード
+type JoinPayload struct {
+	UserId    string `json:"userId"`
+	UserName  string `json:"userName,omitempty"`
+	UserImage string `json:"userImage,omitempty"`
+}
+
 type WebSocketHandler struct {
 	svc *service.RoomService
 }
@@ -88,6 +95,21 @@ func (h *WebSocketHandler) HandleWebSocket(w http.ResponseWriter, r *http.Reques
 	// クライアントを登録
 	client := registerClient(roomId, userId, conn)
 	defer func() {
+		// WebSocket切断時にユーザーをルームから退出させる
+		if err := h.svc.Leave(context.Background(), roomId, userId); err != nil {
+			log.Printf("Failed to auto-leave on disconnect: roomId=%s, userId=%s, error=%v", roomId, userId, err)
+		} else {
+			log.Printf("User auto-left on disconnect: roomId=%s, userId=%s", roomId, userId)
+
+			// 他のユーザーに退出を通知
+			broadcastToRoom(client.room, WebSocketMessage{
+				Type: "user_left",
+				Payload: LeavePayload{
+					UserId: userId,
+				},
+			}, userId)
+		}
+
 		unregisterClient(client)
 		conn.Close()
 	}()
@@ -191,6 +213,16 @@ func registerClient(roomId, userId string, conn *websocket.Conn) *Client {
 	room.mu.Lock()
 	room.clients[userId] = client
 	room.mu.Unlock()
+
+	// 既存の参加者に新しいユーザーの参加を通知
+	broadcastToRoom(room, WebSocketMessage{
+		Type: "user_joined",
+		Payload: JoinPayload{
+			UserId: userId,
+		},
+	}, userId)
+
+	log.Printf("User joined and broadcasted: roomId=%s, userId=%s", roomId, userId)
 
 	return client
 }

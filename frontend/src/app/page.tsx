@@ -24,16 +24,19 @@ export default function Page() {
       const config = new Configuration({ basePath: apiUrl });
       const roomService = new RoomServiceApi(config);
 
+      // ユーザーIDを生成
+      const userId = `user_${Date.now()}`;
+
       // 生成されたAPIクライアントを使用
       const response = await roomService.roomServiceCreateRoom({
         userName: userName,
-        userId: `user_${Date.now()}`, // 一時的なユーザーID
+        userId: userId,
       });
 
       if (response.data.success && response.data.roomId) {
-        // レスポンスからルームIDを取得してページ遷移
+        // レスポンスからルームIDを取得してページ遷移（userIdも渡す）
         console.log('Room created:', response.data);
-        router.push(`/room/${response.data.roomId}?name=${encodeURIComponent(userName)}`);
+        router.push(`/room/${response.data.roomId}?name=${encodeURIComponent(userName)}&userId=${userId}`);
       } else {
         alert('ルーム作成に失敗しました');
       }
@@ -56,7 +59,9 @@ export default function Page() {
       const response = await roomService.roomServiceGetRoom(roomId);
 
       if (response.data.room) {
-        router.push(`/room/${roomId}?name=${encodeURIComponent(userName)}`);
+        // 新しいユーザーIDを生成して渡す
+        const userId = `user_${Date.now()}`;
+        router.push(`/room/${roomId}?name=${encodeURIComponent(userName)}&userId=${userId}`);
       } else {
         alert('指定されたルームが見つかりません');
       }
