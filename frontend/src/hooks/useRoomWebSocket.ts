@@ -17,11 +17,17 @@ interface UserJoinedPayload {
   userImage?: string;
 }
 
+interface MuteStatePayload {
+  userId: string;
+  isMuted: boolean;
+}
+
 interface UseRoomWebSocketOptions {
   roomId: string;
   userId: string;
   onUserJoined?: (payload: UserJoinedPayload) => void;
   onUserLeft?: (payload: UserLeftPayload) => void;
+  onUserMuteStateChanged?: (payload: MuteStatePayload) => void;
   onError?: (error: string) => void;
 }
 
@@ -30,6 +36,7 @@ export function useRoomWebSocket({
   userId,
   onUserJoined,
   onUserLeft,
+  onUserMuteStateChanged,
   onError
 }: UseRoomWebSocketOptions) {
   const wsRef = useRef<WebSocket | null>(null);
@@ -66,6 +73,11 @@ export function useRoomWebSocket({
               onUserLeft(message.payload as UserLeftPayload);
             }
             break;
+          case 'user_mute_state_changed':
+            if (onUserMuteStateChanged && message.payload) {
+              onUserMuteStateChanged(message.payload as MuteStatePayload);
+            }
+            break;
           case 'error':
             if (onError && message.payload?.message) {
               onError(message.payload.message);
@@ -100,7 +112,7 @@ export function useRoomWebSocket({
     };
 
     wsRef.current = ws;
-  }, [roomId, userId, onUserJoined, onUserLeft, onError]);
+  }, [roomId, userId, onUserJoined, onUserLeft, onUserMuteStateChanged, onError]);
 
   useEffect(() => {
     // React Strict Modeでの重複実行を防ぐ
@@ -140,6 +152,19 @@ export function useRoomWebSocket({
     }
   }, [userId]);
 
+  const notifyMuteState = useCallback((isMuted: boolean) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      const message: WebSocketMessage = {
+        type: 'mute_state',
+        payload: {
+          userId,
+          isMuted
+        }
+      };
+      wsRef.current.send(JSON.stringify(message));
+    }
+  }, [userId]);
+
   // ping送信（接続維持用）
   const sendPing = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -149,6 +174,7 @@ export function useRoomWebSocket({
 
   return {
     notifyLeave,
+    notifyMuteState,
     sendPing,
     isConnected: wsRef.current?.readyState === WebSocket.OPEN
   };

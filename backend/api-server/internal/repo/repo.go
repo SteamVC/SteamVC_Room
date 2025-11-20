@@ -14,6 +14,7 @@ type RoomRepo interface {
 	AddUser(ctx context.Context, roomId string, user models.User, ttlSec int) error
 	RemoveUser(ctx context.Context, roomId, userId string) error
 	ListUser(ctx context.Context, roomId string) ([]models.User, error)
+	UpdateUserMute(ctx context.Context, roomId, userId string, isMuted bool) error
 
 	TouchRoom(ctx context.Context, roomId string, ttlSec int) error
 	ExistsRoom(ctx context.Context, roomId string) (bool, error)

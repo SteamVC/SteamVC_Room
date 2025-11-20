@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/SteamVC/SteamVC_Room/backend/api-server/internal/idgen"
@@ -114,4 +115,14 @@ func (s *RoomService) Leave(ctx context.Context, roomId, userId string) error {
 
 func (s *RoomService) Touch(ctx context.Context, roomId string) error {
 	return s.repo.TouchRoom(ctx, roomId, s.ttlSec)
+}
+
+func (s *RoomService) SetMuteState(ctx context.Context, roomId, userId string, isMuted bool) error {
+	if err := s.repo.UpdateUserMute(ctx, roomId, userId, isMuted); err != nil {
+		if errors.Is(err, repo.ErrUserNotFound) {
+			return ErrUserNotFound
+		}
+		return err
+	}
+	return nil
 }
