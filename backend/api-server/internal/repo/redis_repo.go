@@ -11,6 +11,8 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+var ErrUserNotFound = errors.New("user not found")
+
 type RedisRoomRepo struct{ rdb *redis.Client }
 
 func NewRedisRoomRepo(rdb *redis.Client) *RedisRoomRepo {
@@ -149,6 +151,39 @@ func (rr *RedisRoomRepo) ListUser(ctx context.Context, roomId string) ([]models.
 		}
 	}
 	return res, nil
+}
+
+func (rr *RedisRoomRepo) UpdateUserMute(ctx context.Context, roomId, userId string, isMuted bool) error {
+	key := userKey(roomId, userId)
+
+	val, err := rr.rdb.Get(ctx, key).Bytes()
+	if err == redis.Nil {
+		return ErrUserNotFound
+	}
+	if err != nil {
+		return err
+	}
+
+	var user models.User
+	if err := json.Unmarshal(val, &user); err != nil {
+		return err
+	}
+	user.IsMuted = isMuted
+
+	data, err := json.Marshal(user)
+	if err != nil {
+		return err
+	}
+
+	ttl, err := rr.rdb.TTL(ctx, key).Result()
+	if err != nil {
+		return err
+	}
+
+	if ttl > 0 {
+		return rr.rdb.Set(ctx, key, data, ttl).Err()
+	}
+	return rr.rdb.Set(ctx, key, data, 0).Err()
 }
 
 func (rr *RedisRoomRepo) TouchRoom(ctx context.Context, roomId string, ttlSec int) error {

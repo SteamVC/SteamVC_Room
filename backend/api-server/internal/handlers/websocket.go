@@ -196,7 +196,16 @@ func (h *WebSocketHandler) handleMuteState(client *Client, payload interface{}) 
 		return
 	}
 
-	// とりあえずフロント通知だけでOK?
+	if err := h.svc.SetMuteState(context.Background(), client.room.roomId, muteStatePayload.UserId, muteStatePayload.IsMuted); err != nil {
+		log.Printf("Failed to update mute state: %v", err)
+		client.conn.WriteJSON(WebSocketMessage{
+			Type: "error",
+			Payload: map[string]string{
+				"message": "Failed to update mute state",
+			},
+		})
+		return
+	}
 
 	// 他のユーザーに通知
 	broadcastToRoom(client.room, WebSocketMessage{

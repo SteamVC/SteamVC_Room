@@ -4,6 +4,7 @@ type User struct {
 	UserId    string `json:"userId"`
 	UserName  string `json:"userName"`
 	UserImage string `json:"userImage,omitempty"`
+	IsMuted   bool   `json:"isMuted"`
 }
 
 type Room struct {
