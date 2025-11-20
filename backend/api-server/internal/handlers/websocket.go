@@ -56,6 +56,12 @@ type LeavePayload struct {
 	UserImage string `json:"userImage,omitempty"`
 }
 
+// MuteStatePayload はミュート用のペイロード
+type MuteStatePayload struct {
+	UserId  string `json:"userId"`
+	IsMuted bool   `json:"isMuted"`
+}
+
 type WebSocketHandler struct {
 	svc *service.RoomService
 }
@@ -109,6 +115,8 @@ func (h *WebSocketHandler) HandleWebSocket(w http.ResponseWriter, r *http.Reques
 		switch msg.Type {
 		case "leave":
 			h.handleLeave(client, msg.Payload)
+		case "mute_state":
+			h.handleMuteState(client, msg.Payload)
 		case "ping":
 			// ping/pongで接続を維持
 			if err := conn.WriteJSON(WebSocketMessage{Type: "pong"}); err != nil {
@@ -166,6 +174,40 @@ func (h *WebSocketHandler) handleLeave(client *Client, payload interface{}) {
 	}, client.userId)
 
 	log.Printf("User left via WebSocket: roomId=%s, userId=%s", client.room.roomId, leavePayload.UserId)
+}
+
+func (h *WebSocketHandler) handleMuteState(client *Client, payload interface{}) {
+	// payloadをMutePayloadに変換
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("Failed to marshal mute payload: %v", err)
+		return
+	}
+
+	var muteStatePayload MuteStatePayload
+	if err := json.Unmarshal(payloadBytes, &muteStatePayload); err != nil {
+		log.Printf("Failed to unmarshal mute payload: %v", err)
+		return
+	}
+
+	// userIdの検証
+	if muteStatePayload.UserId != client.userId {
+		log.Printf("UserId mismatch: expected %s, got %s", client.userId, muteStatePayload.UserId)
+		return
+	}
+
+	// とりあえずフロント通知だけでOK?
+
+	// 他のユーザーに通知
+	broadcastToRoom(client.room, WebSocketMessage{
+		Type: "user_mute_state_changed",
+		Payload: MuteStatePayload{
+			UserId:  muteStatePayload.UserId,
+			IsMuted: muteStatePayload.IsMuted,
+		},
+	}, client.userId)
+
+	log.Printf("User mute state changed via WebSocket: roomId=%s, userId=%s, isMuted=%t", client.room.roomId, muteStatePayload.UserId, muteStatePayload.IsMuted)
 }
 
 // registerClient はクライアントを登録します
