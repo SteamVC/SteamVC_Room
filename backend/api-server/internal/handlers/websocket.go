@@ -29,11 +29,13 @@ type Room struct {
 }
 
 // Client は1つのWebSocket接続を表します
-// ユーザーとWebSocket接続の関連付けを保持します
+// ユーザーとWebSocket接続の関連付け、表示名、アイコンを保持します
 type Client struct {
-	userId string          // ユーザーID
-	conn   *websocket.Conn // WebSocket接続
-	room   *Room           // 所属するルーム
+	userId    string          // ユーザーID
+	userName  string          // 表示名（通知用）
+	userImage string          // アイコンURL（通知用）
+	conn      *websocket.Conn // WebSocket接続
+	room      *Room           // 所属するルーム
 }
 
 // WebSocketMessage はWebSocketで送受信するメッセージの構造
@@ -99,6 +101,7 @@ func NewWebSocketHandler(s *service.RoomService) *WebSocketHandler {
 func (h *WebSocketHandler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	roomId := normalizeID(chi.URLParam(r, "roomId"))
 	userId := normalizeID(r.URL.Query().Get("userId"))
+	var userName, userImage string
 
 	if err := validateRoomId(roomId); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -109,6 +112,16 @@ func (h *WebSocketHandler) HandleWebSocket(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	if _, users, ok, err := h.svc.Get(r.Context(), roomId); err == nil && ok {
+		for _, u := range users {
+			if u.UserId == userId {
+				userName = u.UserName
+				userImage = u.UserImage
+				break
+			}
+		}
+	}
+
 	// WebSocket接続にアップグレード
 	conn, err := h.upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -117,7 +130,7 @@ func (h *WebSocketHandler) HandleWebSocket(w http.ResponseWriter, r *http.Reques
 	}
 
 	// クライアントを登録
-	client := h.hub.registerClient(roomId, userId, conn)
+	client := h.hub.registerClient(roomId, userId, userName, userImage, conn)
 	defer func() {
 		// WebSocket切断時にユーザーをルームから退出させる
 		if err := h.svc.Leave(context.Background(), roomId, userId); err != nil {
@@ -215,8 +228,8 @@ func (h *WebSocketHandler) handleLeave(client *Client, payload interface{}) {
 		Type: "user_left",
 		Payload: LeavePayload{
 			UserId:    leavePayload.UserId,
-			UserName:  leavePayload.UserName,
-			UserImage: leavePayload.UserImage,
+			UserName:  client.userName,
+			UserImage: client.userImage,
 		},
 	}, client.userId)
 
@@ -315,13 +328,15 @@ func (h *WebSocketHandler) handleRename(client *Client, payload interface{}) {
 		},
 	}, client.userId)
 
+	client.userName = strings.TrimSpace(renamePayload.UserName)
+
 	log.Printf("User renamed via WebSocket: roomId=%s, userId=%s, userName=%s", client.room.roomId, renamePayload.UserId, renamePayload.UserName)
 }
 
 // registerClient はクライアントを登録します
 // 新しいユーザーがルームに接続した際に呼ばれます
 // ルームが存在しない場合は新規作成し、既存の参加者に参加通知を送信します
-func (hub *RoomHub) registerClient(roomId, userId string, conn *websocket.Conn) *Client {
+func (hub *RoomHub) registerClient(roomId, userId, userName, userImage string, conn *websocket.Conn) *Client {
 	hub.mu.Lock()
 	defer hub.mu.Unlock()
 
@@ -335,9 +350,11 @@ func (hub *RoomHub) registerClient(roomId, userId string, conn *websocket.Conn) 
 	}
 
 	client := &Client{
-		userId: userId,
-		conn:   conn,
-		room:   room,
+		userId:    userId,
+		userName:  userName,
+		userImage: userImage,
+		conn:      conn,
+		room:      room,
 	}
 
 	room.mu.Lock()
@@ -348,7 +365,9 @@ func (hub *RoomHub) registerClient(roomId, userId string, conn *websocket.Conn) 
 	hub.broadcastToRoom(room, WebSocketMessage{
 		Type: "user_joined",
 		Payload: JoinPayload{
-			UserId: userId,
+			UserId:    userId,
+			UserName:  userName,
+			UserImage: userImage,
 		},
 	}, userId)
 
