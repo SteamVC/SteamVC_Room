@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Mic, MicOff, Headphones, Users, X } from 'lucide-react';
 import { MinidenticonImg } from '@/components/MinidenticonImg';
 
@@ -14,19 +15,37 @@ interface RoomProps {
     image?: string;
     isMuted?: boolean;
   }>;
+  myName: string;
   audioEnabled: boolean;
   onToggleAudio: () => void;
+  onRename: (name: string) => void;
   onLeave: () => void;
 }
 
 export function Room({
   roomId,
   participants = [],
+  myName,
   audioEnabled,
   onToggleAudio,
+  onRename,
   onLeave
 }: RoomProps) {
   const [showParticipantsList, setShowParticipantsList] = useState(false);
+  const [nameInput, setNameInput] = useState(myName);
+
+  useEffect(() => {
+    setNameInput(myName);
+  }, [myName]);
+
+  const handleRenameSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    const next = nameInput.trim();
+    if (!next || next === myName) {
+      return;
+    }
+    onRename(next);
+  };
 
   // 参加者数に応じてグリッドのクラスを決定
   const getGridClass = () => {
@@ -56,6 +75,23 @@ export function Room({
             <X className="h-5 w-5" />
           </Button>
         </div>
+      </div>
+
+      {/* 表示名設定 */}
+      <div className="bg-white/80 backdrop-blur px-6 py-3 border-b border-green-200">
+        <form className="flex items-center gap-3 max-w-xl" onSubmit={handleRenameSubmit}>
+          <div className="flex-1">
+            <Input
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              placeholder="表示名を入力"
+              className="bg-white"
+            />
+          </div>
+          <Button type="submit" className="bg-green-600 hover:bg-green-700">
+            更新
+          </Button>
+        </form>
       </div>
 
       {/* 参加者グリッド */}

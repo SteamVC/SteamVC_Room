@@ -7,6 +7,7 @@ import { Device, types } from 'mediasoup-client';
 import { Room } from '@/app/room/Room';
 import { useRoomWebSocket } from '@/hooks/useRoomWebSocket';
 import { RoomServiceApi, Configuration } from '@/api/generated';
+import axios from 'axios';
 
 type RtpCapabilities = types.RtpCapabilities;
 type Transport = types.Transport;
@@ -41,12 +42,14 @@ export default function RoomPage() {
 
   // URLパラメータからuserIdを取得、なければ生成
   const userIdFromUrl = searchParams.get('userId');
+  const initialNameFromUrl = searchParams.get('name') || '名前なし';
 
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [ownerId, setOwnerId] = useState<string | null>(null);
   const [userId, setUserId] = useState<string>(userIdFromUrl || `user_${Date.now()}`);
+  const [displayName, setDisplayName] = useState<string>(initialNameFromUrl);
 
   const socketRef = useRef<Socket | null>(null);
   const deviceRef = useRef<Device | null>(null);
@@ -83,7 +86,7 @@ export default function RoomPage() {
   }, []);
 
   // API ServerへのWebSocket接続（ユーザー参加/退出通知用）
-  const { notifyLeave, notifyMuteState } = useRoomWebSocket({
+  const { notifyLeave, notifyMuteState, notifyRename } = useRoomWebSocket({
     roomId,
     userId: userId,
     onUserJoined: (payload) => {
@@ -108,6 +111,9 @@ export default function RoomPage() {
       // 参加者リストから削除
       setParticipants(prev => prev.filter(p => p.id !== payload.userId));
       delete muteStateRef.current[payload.userId];
+    },
+    onUserRenamed: (payload) => {
+      setParticipants(prev => prev.map(p => p.id === payload.userId ? { ...p, name: payload.userName } : p));
     },
     onUserMuteStateChanged: (payload) => {
       updateParticipantMuteState(payload.userId, payload.isMuted);
@@ -193,7 +199,7 @@ export default function RoomPage() {
 
           if (!isAlreadyJoined) {
             // まだ参加していない場合のみjoinRoomを呼ぶ
-            await roomService.roomServiceJoinRoom(roomId, { userId });
+            await roomService.roomServiceJoinRoom(roomId, { userId, userName: displayName });
             console.log('Joined room:', roomId, 'with userId:', userId);
 
             // 再度参加者リストを取得
@@ -398,6 +404,25 @@ export default function RoomPage() {
     }
   };
 
+  const handleRename = async (nextName: string) => {
+    const trimmed = nextName.trim();
+    if (!trimmed) return;
+
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+      await axios.post(`${apiUrl}/api/v1/room/${roomId}/rename`, { userId, userName: trimmed });
+
+      setDisplayName(trimmed);
+      setParticipants(prev => prev.map(p => p.id === userId ? { ...p, name: trimmed } : p));
+
+      // 他のユーザーへ通知
+      notifyRename(trimmed);
+    } catch (error) {
+      console.error('Failed to rename user:', error);
+      alert('名前の変更に失敗しました');
+    }
+  };
+
   const handleLeave = async () => {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
@@ -428,8 +453,10 @@ export default function RoomPage() {
     <Room
       roomId={roomId}
       participants={participants}
+      myName={displayName}
       audioEnabled={audioEnabled}
       onToggleAudio={toggleAudio}
+      onRename={(name) => handleRename(name)}
       onLeave={handleLeave}
     />
   );

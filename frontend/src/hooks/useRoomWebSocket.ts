@@ -17,6 +17,11 @@ interface UserJoinedPayload {
   userImage?: string;
 }
 
+interface UserRenamedPayload {
+  userId: string;
+  userName: string;
+}
+
 interface MuteStatePayload {
   userId: string;
   isMuted: boolean;
@@ -27,6 +32,7 @@ interface UseRoomWebSocketOptions {
   userId: string;
   onUserJoined?: (payload: UserJoinedPayload) => void;
   onUserLeft?: (payload: UserLeftPayload) => void;
+  onUserRenamed?: (payload: UserRenamedPayload) => void;
   onUserMuteStateChanged?: (payload: MuteStatePayload) => void;
   onError?: (error: string) => void;
 }
@@ -36,6 +42,7 @@ export function useRoomWebSocket({
   userId,
   onUserJoined,
   onUserLeft,
+  onUserRenamed,
   onUserMuteStateChanged,
   onError
 }: UseRoomWebSocketOptions) {
@@ -76,6 +83,11 @@ export function useRoomWebSocket({
           case 'user_mute_state_changed':
             if (onUserMuteStateChanged && message.payload) {
               onUserMuteStateChanged(message.payload as MuteStatePayload);
+            }
+            break;
+          case 'user_renamed':
+            if (onUserRenamed && message.payload) {
+              onUserRenamed(message.payload as UserRenamedPayload);
             }
             break;
           case 'error':
@@ -152,6 +164,19 @@ export function useRoomWebSocket({
     }
   }, [userId]);
 
+  const notifyRename = useCallback((userName: string) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      const message: WebSocketMessage = {
+        type: 'rename',
+        payload: {
+          userId,
+          userName
+        }
+      };
+      wsRef.current.send(JSON.stringify(message));
+    }
+  }, [userId]);
+
   const notifyMuteState = useCallback((isMuted: boolean) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       const message: WebSocketMessage = {
@@ -175,6 +200,7 @@ export function useRoomWebSocket({
   return {
     notifyLeave,
     notifyMuteState,
+    notifyRename,
     sendPing,
     isConnected: wsRef.current?.readyState === WebSocket.OPEN
   };
