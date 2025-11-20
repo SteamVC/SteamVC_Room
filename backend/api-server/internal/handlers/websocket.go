@@ -12,13 +12,6 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		// 本番環境では適切なOriginチェックを実装してください
-		return true
-	},
-}
-
 // RoomHub は部屋ごとのWebSocket接続を管理します
 type RoomHub struct {
 	rooms map[string]*Room
@@ -37,10 +30,6 @@ type Client struct {
 	userId string
 	conn   *websocket.Conn
 	room   *Room
-}
-
-var hub = &RoomHub{
-	rooms: make(map[string]*Room),
 }
 
 // WebSocketMessage はWebSocketで送受信するメッセージの構造
@@ -70,17 +59,28 @@ type JoinPayload struct {
 }
 
 type WebSocketHandler struct {
-	svc *service.RoomService
+	svc      *service.RoomService
+	hub      *RoomHub
+	upgrader websocket.Upgrader
 }
 
 func NewWebSocketHandler(s *service.RoomService) *WebSocketHandler {
-	return &WebSocketHandler{svc: s}
+	return &WebSocketHandler{
+		svc: s,
+		hub: &RoomHub{rooms: make(map[string]*Room)},
+		upgrader: websocket.Upgrader{
+			CheckOrigin: func(r *http.Request) bool {
+				// 本番環境では適切なOriginチェックを実装してください
+				return true
+			},
+		},
+	}
 }
 
 // HandleWebSocket はWebSocket接続を処理します
 func (h *WebSocketHandler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
-	roomId := chi.URLParam(r, "roomId")
-	userId := r.URL.Query().Get("userId")
+	roomId := normalizeID(chi.URLParam(r, "roomId"))
+	userId := normalizeID(r.URL.Query().Get("userId"))
 
 	if err := validateRoomId(roomId); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -92,14 +92,14 @@ func (h *WebSocketHandler) HandleWebSocket(w http.ResponseWriter, r *http.Reques
 	}
 
 	// WebSocket接続にアップグレード
-	conn, err := upgrader.Upgrade(w, r, nil)
+	conn, err := h.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("WebSocket upgrade error: %v", err)
 		return
 	}
 
 	// クライアントを登録
-	client := registerClient(roomId, userId, conn)
+	client := h.hub.registerClient(roomId, userId, conn)
 	defer func() {
 		// WebSocket切断時にユーザーをルームから退出させる
 		if err := h.svc.Leave(context.Background(), roomId, userId); err != nil {
@@ -108,7 +108,7 @@ func (h *WebSocketHandler) HandleWebSocket(w http.ResponseWriter, r *http.Reques
 			log.Printf("User auto-left on disconnect: roomId=%s, userId=%s", roomId, userId)
 
 			// 他のユーザーに退出を通知
-			broadcastToRoom(client.room, WebSocketMessage{
+			h.hub.broadcastToRoom(client.room, WebSocketMessage{
 				Type: "user_left",
 				Payload: LeavePayload{
 					UserId: userId,
@@ -116,7 +116,7 @@ func (h *WebSocketHandler) HandleWebSocket(w http.ResponseWriter, r *http.Reques
 			}, userId)
 		}
 
-		unregisterClient(client)
+		h.hub.unregisterClient(client)
 		conn.Close()
 	}()
 
@@ -186,7 +186,7 @@ func (h *WebSocketHandler) handleLeave(client *Client, payload interface{}) {
 	}
 
 	// 同じ部屋の他のユーザーに退出を通知
-	broadcastToRoom(client.room, WebSocketMessage{
+	h.hub.broadcastToRoom(client.room, WebSocketMessage{
 		Type: "user_left",
 		Payload: LeavePayload{
 			UserId:    leavePayload.UserId,
@@ -230,7 +230,7 @@ func (h *WebSocketHandler) handleMuteState(client *Client, payload interface{}) 
 	}
 
 	// 他のユーザーに通知
-	broadcastToRoom(client.room, WebSocketMessage{
+	h.hub.broadcastToRoom(client.room, WebSocketMessage{
 		Type: "user_mute_state_changed",
 		Payload: MuteStatePayload{
 			UserId:  muteStatePayload.UserId,
@@ -242,7 +242,7 @@ func (h *WebSocketHandler) handleMuteState(client *Client, payload interface{}) 
 }
 
 // registerClient はクライアントを登録します
-func registerClient(roomId, userId string, conn *websocket.Conn) *Client {
+func (hub *RoomHub) registerClient(roomId, userId string, conn *websocket.Conn) *Client {
 	hub.mu.Lock()
 	defer hub.mu.Unlock()
 
@@ -266,7 +266,7 @@ func registerClient(roomId, userId string, conn *websocket.Conn) *Client {
 	room.mu.Unlock()
 
 	// 既存の参加者に新しいユーザーの参加を通知
-	broadcastToRoom(room, WebSocketMessage{
+	hub.broadcastToRoom(room, WebSocketMessage{
 		Type: "user_joined",
 		Payload: JoinPayload{
 			UserId: userId,
@@ -279,7 +279,7 @@ func registerClient(roomId, userId string, conn *websocket.Conn) *Client {
 }
 
 // unregisterClient はクライアントの登録を解除します
-func unregisterClient(client *Client) {
+func (hub *RoomHub) unregisterClient(client *Client) {
 	room := client.room
 	room.mu.Lock()
 	delete(room.clients, client.userId)
@@ -288,14 +288,18 @@ func unregisterClient(client *Client) {
 
 	// 部屋が空になったら削除
 	if isEmpty {
-		hub.mu.Lock()
-		delete(hub.rooms, room.roomId)
-		hub.mu.Unlock()
+		hub.deleteRoom(room.roomId)
 	}
 }
 
+func (hub *RoomHub) deleteRoom(roomId string) {
+	hub.mu.Lock()
+	defer hub.mu.Unlock()
+	delete(hub.rooms, roomId)
+}
+
 // broadcastToRoom は部屋内の全クライアントにメッセージを送信します（送信者を除く）
-func broadcastToRoom(room *Room, msg WebSocketMessage, excludeUserId string) {
+func (hub *RoomHub) broadcastToRoom(room *Room, msg WebSocketMessage, excludeUserId string) {
 	room.mu.RLock()
 	defer room.mu.RUnlock()
 

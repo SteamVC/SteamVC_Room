@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/SteamVC/SteamVC_Room/backend/api-server/internal/config"
 	"github.com/SteamVC/SteamVC_Room/backend/api-server/internal/handlers"
 	httpx "github.com/SteamVC/SteamVC_Room/backend/api-server/internal/http"
 	"github.com/SteamVC/SteamVC_Room/backend/api-server/internal/repo"
@@ -16,25 +17,11 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-const (
-	defaultTTLSec = 60 * 60 // 1時間
-)
-
-func getEnvOrDefault(key, def string) string {
-	v := os.Getenv(key)
-	if v == "" {
-		return def
-	}
-	return v
-}
-
 func main() {
-	addr := getEnvOrDefault("API_ADDR", ":8080")
-	redisAddr := getEnvOrDefault("REDIS_ADDR", "localhost:6379")
-	ttlSec := defaultTTLSec
+	cfg := config.Load()
 
 	rdb := redis.NewClient(&redis.Options{
-		Addr:         redisAddr,
+		Addr:         cfg.RedisAddr,
 		PoolSize:     10,              // 接続プールサイズ
 		MinIdleConns: 5,               // 最小アイドル接続数
 		MaxRetries:   3,               // リトライ回数
@@ -52,13 +39,13 @@ func main() {
 
 	rr := repo.NewRedisRoomRepo(rdb)
 	idg := service.NewRoomIDGenerator()
-	svc := service.NewRoomService(rr, idg, ttlSec)
+	svc := service.NewRoomService(rr, idg, cfg.RoomTTL)
 	h := handlers.NewRoomHandler(svc)
 	wsHandler := handlers.NewWebSocketHandler(svc)
-	router := httpx.NewRouter(h, wsHandler)
+	router := httpx.NewRouter(h, wsHandler, cfg.AllowedOrigin)
 
 	srv := &http.Server{
-		Addr:              addr,
+		Addr:              cfg.APIAddr,
 		Handler:           router,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
@@ -69,7 +56,7 @@ func main() {
 
 	// サーバーを別goroutineで起動
 	go func() {
-		log.Printf("listening on %s", addr)
+		log.Printf("listening on %s", cfg.APIAddr)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("server error: %v", err)
 		}
