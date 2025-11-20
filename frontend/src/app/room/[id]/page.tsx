@@ -7,7 +7,6 @@ import { Device, types } from 'mediasoup-client';
 import { Room } from '@/app/room/Room';
 import { useRoomWebSocket } from '@/hooks/useRoomWebSocket';
 import { RoomServiceApi, Configuration } from '@/api/generated';
-import axios from 'axios';
 
 type RtpCapabilities = types.RtpCapabilities;
 type Transport = types.Transport;
@@ -404,23 +403,16 @@ export default function RoomPage() {
     }
   };
 
-  const handleRename = async (nextName: string) => {
+  const handleRename = (nextName: string) => {
     const trimmed = nextName.trim();
     if (!trimmed) return;
 
-    try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
-      await axios.post(`${apiUrl}/api/v1/room/${roomId}/rename`, { userId, userName: trimmed });
+    // 自分の表示名を即時更新
+    setDisplayName(trimmed);
+    setParticipants(prev => prev.map(p => p.id === userId ? { ...p, name: trimmed } : p));
 
-      setDisplayName(trimmed);
-      setParticipants(prev => prev.map(p => p.id === userId ? { ...p, name: trimmed } : p));
-
-      // 他のユーザーへ通知
-      notifyRename(trimmed);
-    } catch (error) {
-      console.error('Failed to rename user:', error);
-      alert('名前の変更に失敗しました');
-    }
+    // WS経由でバックエンドに反映＆他ユーザーへ通知（leave/mute_stateと同じ運用）
+    notifyRename(trimmed);
   };
 
   const handleLeave = async () => {
