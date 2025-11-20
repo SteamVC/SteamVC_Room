@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/SteamVC/SteamVC_Room/backend/api-server/internal/service"
@@ -22,9 +23,9 @@ type RoomHub struct {
 // Room は1つの部屋のWebSocket接続を管理します
 // 各ルームは複数のクライアント（ユーザー）の接続を保持します
 type Room struct {
-	roomId  string              // ルームID
-	clients map[string]*Client  // ユーザーIDをキーとしたクライアントのマップ
-	mu      sync.RWMutex        // 読み書きのロック
+	roomId  string             // ルームID
+	clients map[string]*Client // ユーザーIDをキーとしたクライアントのマップ
+	mu      sync.RWMutex       // 読み書きのロック
 }
 
 // Client は1つのWebSocket接続を表します
@@ -44,9 +45,9 @@ type WebSocketMessage struct {
 
 // LeavePayload はユーザー退出時のペイロード
 type LeavePayload struct {
-	UserId    string `json:"userId"`                // 退出するユーザーのID
-	UserName  string `json:"userName,omitempty"`    // ユーザー名（オプショナル）
-	UserImage string `json:"userImage,omitempty"`   // ユーザーのアイコン画像URL（オプショナル）
+	UserId    string `json:"userId"`              // 退出するユーザーのID
+	UserName  string `json:"userName,omitempty"`  // ユーザー名（オプショナル）
+	UserImage string `json:"userImage,omitempty"` // ユーザーのアイコン画像URL（オプショナル）
 }
 
 // MuteStatePayload はミュート状態変更時のペイロード
@@ -57,9 +58,15 @@ type MuteStatePayload struct {
 
 // JoinPayload はユーザー参加時のペイロード
 type JoinPayload struct {
-	UserId    string `json:"userId"`                // 参加するユーザーのID
-	UserName  string `json:"userName,omitempty"`    // ユーザー名（オプショナル）
-	UserImage string `json:"userImage,omitempty"`   // ユーザーのアイコン画像URL（オプショナル）
+	UserId    string `json:"userId"`              // 参加するユーザーのID
+	UserName  string `json:"userName,omitempty"`  // ユーザー名（オプショナル）
+	UserImage string `json:"userImage,omitempty"` // ユーザーのアイコン画像URL（オプショナル）
+}
+
+// RenamePayload は表示名変更時のペイロード
+type RenamePayload struct {
+	UserId   string `json:"userId"`   // 対象ユーザーのID
+	UserName string `json:"userName"` // 新しい表示名
 }
 
 // WebSocketHandler はWebSocket接続を処理するハンドラー
@@ -150,6 +157,8 @@ func (h *WebSocketHandler) HandleWebSocket(w http.ResponseWriter, r *http.Reques
 			h.handleLeave(client, msg.Payload)
 		case "mute_state":
 			h.handleMuteState(client, msg.Payload)
+		case "rename":
+			h.handleRename(client, msg.Payload)
 		case "ping":
 			// ping/pongで接続を維持
 			if err := conn.WriteJSON(WebSocketMessage{Type: "pong"}); err != nil {
@@ -261,6 +270,52 @@ func (h *WebSocketHandler) handleMuteState(client *Client, payload interface{}) 
 	}, client.userId)
 
 	log.Printf("User mute state changed via WebSocket: roomId=%s, userId=%s, isMuted=%t", client.room.roomId, muteStatePayload.UserId, muteStatePayload.IsMuted)
+}
+
+// handleRename はユーザーの表示名変更を処理します
+func (h *WebSocketHandler) handleRename(client *Client, payload interface{}) {
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("Failed to marshal rename payload: %v", err)
+		return
+	}
+
+	var renamePayload RenamePayload
+	if err := json.Unmarshal(payloadBytes, &renamePayload); err != nil {
+		log.Printf("Failed to unmarshal rename payload: %v", err)
+		return
+	}
+
+	if renamePayload.UserId != client.userId {
+		log.Printf("UserId mismatch: expected %s, got %s", client.userId, renamePayload.UserId)
+		return
+	}
+	if strings.TrimSpace(renamePayload.UserName) == "" {
+		log.Printf("userName required for rename")
+		return
+	}
+
+	if err := h.svc.SetUserName(context.Background(), client.room.roomId, renamePayload.UserId, strings.TrimSpace(renamePayload.UserName)); err != nil {
+		log.Printf("Failed to rename user: %v", err)
+		client.conn.WriteJSON(WebSocketMessage{
+			Type: "error",
+			Payload: map[string]string{
+				"message": "Failed to rename user",
+			},
+		})
+		return
+	}
+
+	// 他のユーザーに通知
+	h.hub.broadcastToRoom(client.room, WebSocketMessage{
+		Type: "user_renamed",
+		Payload: RenamePayload{
+			UserId:   renamePayload.UserId,
+			UserName: strings.TrimSpace(renamePayload.UserName),
+		},
+	}, client.userId)
+
+	log.Printf("User renamed via WebSocket: roomId=%s, userId=%s, userName=%s", client.room.roomId, renamePayload.UserId, renamePayload.UserName)
 }
 
 // registerClient はクライアントを登録します
