@@ -12,6 +12,7 @@ interface RoomProps {
     id: string;
     name?: string;
     image?: string;
+    isMuted?: boolean;
   }>;
   audioEnabled: boolean;
   onToggleAudio: () => void;
@@ -71,28 +72,39 @@ export function Room({
           </div>
         ) : (
           <div className={`h-full grid ${getGridClass()} gap-4`}>
-            {participants.map((participant) => (
-              <Card
-                key={participant.id}
-                className="bg-gray-200"
-              >
-                <CardContent className="flex items-center justify-center h-full p-0">
-                  <div className="text-center">
-                    <MinidenticonImg
-                      username={participant.id}
-                      saturation="60"
-                      lightness="50"
-                      width={96}
-                      height={96}
-                      className="rounded-lg mx-auto mb-2"
-                    />
-                    <p className="text-gray-800 font-medium">
-                      {participant.name || '名前なし'}
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+            {participants.map((participant) => {
+              const isMuted = participant.isMuted ?? false;
+              return (
+                <Card
+                  key={participant.id}
+                  className="bg-gray-200"
+                >
+                  <CardContent className="flex items-center justify-center h-full p-0">
+                    <div className="text-center">
+                      <MinidenticonImg
+                        username={participant.id}
+                        saturation="60"
+                        lightness="50"
+                        width={96}
+                        height={96}
+                        className="rounded-lg mx-auto mb-2"
+                      />
+                      <p className="text-gray-800 font-medium">
+                        {participant.name || '名前なし'}
+                      </p>
+                      <div className={`mt-2 inline-flex items-center gap-1 text-sm font-medium ${isMuted ? 'text-red-500' : 'text-green-600'}`}>
+                        {isMuted ? (
+                          <MicOff className="h-4 w-4" />
+                        ) : (
+                          <Mic className="h-4 w-4" />
+                        )}
+                        <span>{isMuted ? 'ミュート中' : 'マイクオン'}</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         )}
       </div>
@@ -155,27 +167,38 @@ export function Room({
                 <p className="text-center text-gray-500">参加者がいません</p>
               ) : (
                 <div className="space-y-3">
-                  {participants.map((participant) => (
-                    <div
-                      key={participant.id}
-                      className="flex items-center gap-3 p-3 bg-gray-100 rounded-lg"
-                    >
-                      <MinidenticonImg
-                        username={participant.id}
-                        saturation="60"
-                        lightness="50"
-                        width={40}
-                        height={40}
-                        className="rounded-full flex-shrink-0"
-                      />
-                      <div className="flex-1">
-                        <p className="font-medium text-gray-800">
-                          {participant.name || '名前なし'}
-                        </p>
-                        <p className="text-sm text-gray-500">ID: {participant.id.slice(0, 8)}</p>
+                  {participants.map((participant) => {
+                    const isMuted = participant.isMuted ?? false;
+                    return (
+                      <div
+                        key={participant.id}
+                        className="flex items-center gap-3 p-3 bg-gray-100 rounded-lg"
+                      >
+                        <MinidenticonImg
+                          username={participant.id}
+                          saturation="60"
+                          lightness="50"
+                          width={40}
+                          height={40}
+                          className="rounded-full flex-shrink-0"
+                        />
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-800">
+                            {participant.name || '名前なし'}
+                          </p>
+                          <p className="text-sm text-gray-500">ID: {participant.id.slice(0, 8)}</p>
+                        </div>
+                        <div className={`flex items-center gap-1 text-sm font-medium ${isMuted ? 'text-red-500' : 'text-green-600'}`}>
+                          {isMuted ? (
+                            <MicOff className="h-4 w-4" />
+                          ) : (
+                            <Mic className="h-4 w-4" />
+                          )}
+                          <span>{isMuted ? 'ミュート中' : 'マイクオン'}</span>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>

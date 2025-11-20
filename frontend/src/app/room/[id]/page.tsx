@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { io, Socket } from 'socket.io-client';
 import { Device, types } from 'mediasoup-client';
@@ -17,7 +17,7 @@ type RtpParameters = types.RtpParameters;
 interface Participant {
   id: string;
   name: string;
-  audioEnabled: boolean;
+  isMuted: boolean;
 }
 
 interface SocketResponse {
@@ -54,9 +54,36 @@ export default function RoomPage() {
   const consumerTransportRef = useRef<Transport | null>(null);
   const audioProducerRef = useRef<Producer | null>(null);
   const hasInitializedRef = useRef(false);
+  const muteStateRef = useRef<Record<string, boolean>>({});
+  const autoStartAttemptedRef = useRef(false);
+
+  const updateParticipantMuteState = useCallback((targetId: string, isMuted: boolean) => {
+    muteStateRef.current[targetId] = isMuted;
+    setParticipants(prev => {
+      let hasUpdated = false;
+      const next = prev.map(participant => {
+        if (participant.id === targetId) {
+          hasUpdated = true;
+          return { ...participant, isMuted };
+        }
+        return participant;
+      });
+      return hasUpdated ? next : prev;
+    });
+  }, []);
+
+  const applyStoredMuteState = useCallback((list: Participant[]) => {
+    return list.map(participant => {
+      const stored = muteStateRef.current[participant.id];
+      if (typeof stored === 'boolean') {
+        return { ...participant, isMuted: stored };
+      }
+      return participant;
+    });
+  }, []);
 
   // API ServerへのWebSocket接続（ユーザー参加/退出通知用）
-  const { notifyLeave } = useRoomWebSocket({
+  const { notifyLeave, notifyMuteState } = useRoomWebSocket({
     roomId,
     userId: userId,
     onUserJoined: (payload) => {
@@ -70,7 +97,9 @@ export default function RoomPage() {
         return [...prev, {
           id: payload.userId,
           name: payload.userName || '名前なし',
-          audioEnabled: false
+          isMuted: typeof muteStateRef.current[payload.userId] === 'boolean'
+            ? muteStateRef.current[payload.userId]
+            : false
         }];
       });
     },
@@ -78,6 +107,10 @@ export default function RoomPage() {
       console.log('User left:', payload);
       // 参加者リストから削除
       setParticipants(prev => prev.filter(p => p.id !== payload.userId));
+      delete muteStateRef.current[payload.userId];
+    },
+    onUserMuteStateChanged: (payload) => {
+      updateParticipantMuteState(payload.userId, payload.isMuted);
     },
     onError: (error) => {
       console.error('WebSocket error:', error);
@@ -149,7 +182,7 @@ export default function RoomPage() {
           const participantsList: Participant[] = response.data.users.map((user: any) => ({
             id: user.userId || '',
             name: user.userName || '名前なし',
-            audioEnabled: false
+            isMuted: typeof user.isMuted === 'boolean' ? user.isMuted : false
           }));
 
           // 自分が既に参加者リストに含まれているかチェック
@@ -169,14 +202,14 @@ export default function RoomPage() {
               const updatedParticipants: Participant[] = updatedResponse.data.users.map((user: any) => ({
                 id: user.userId || '',
                 name: user.userName || '名前なし',
-                audioEnabled: false
+                isMuted: typeof user.isMuted === 'boolean' ? user.isMuted : false
               }));
-              setParticipants(updatedParticipants);
+              setParticipants(applyStoredMuteState(updatedParticipants));
               console.log('Loaded participants after join:', updatedParticipants);
             }
           } else {
             console.log('Already in room:', roomId, 'with userId:', userId);
-            setParticipants(participantsList);
+            setParticipants(applyStoredMuteState(participantsList));
             console.log('Loaded participants:', participantsList);
           }
         }
@@ -284,6 +317,8 @@ export default function RoomPage() {
 
       console.log('Audio producer created:', producer.id);
       setAudioEnabled(true);
+      notifyMuteState(false);
+      updateParticipantMuteState(userId, false);
 
     } catch (error) {
       console.error('Failed to start audio:', error);
@@ -291,12 +326,23 @@ export default function RoomPage() {
     }
   };
 
+  useEffect(() => {
+    if (!isConnected || autoStartAttemptedRef.current) {
+      return;
+    }
+    autoStartAttemptedRef.current = true;
+    startAudio();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isConnected]);
+
   const stopAudio = () => {
     if (audioProducerRef.current) {
       audioProducerRef.current.close();
       audioProducerRef.current = null;
     }
     setAudioEnabled(false);
+    notifyMuteState(true);
+    updateParticipantMuteState(userId, true);
   };
 
   const consume = async (producerId: string) => {
