@@ -8,10 +8,13 @@ import (
 	"strings"
 )
 
+// errorResponse はエラーレスポンスの構造
 type errorResponse struct {
-	Message string `json:"message"`
+	Message string `json:"message"` // エラーメッセージ
 }
 
+// respondJSON はJSONレスポンスを返します
+// payloadがnilの場合は空のレスポンスを返します
 func respondJSON(w http.ResponseWriter, status int, payload any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -23,12 +26,16 @@ func respondJSON(w http.ResponseWriter, status int, payload any) {
 	}
 }
 
+// respondError はエラーレスポンスを返します
 func respondError(w http.ResponseWriter, status int, msg string) {
 	respondJSON(w, status, errorResponse{Message: msg})
 }
 
+// decodeJSON はリクエストボディからJSONをデコードします
+// デコードに失敗した場合は、エラーレスポンスを返してfalseを返します
+// 成功した場合はtrueを返します
 func decodeJSON(w http.ResponseWriter, r *http.Request, dst any) bool {
-	// 最低限の防御: 大きすぎるリクエストを防ぐ
+	// 最低限の防御: 大きすぎるリクエストを防ぐ（1MB制限）
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB
 
 	dec := json.NewDecoder(r.Body)
@@ -46,6 +53,7 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, dst any) bool {
 	return true
 }
 
+// normalizeID はIDの前後の空白を削除して正規化します
 func normalizeID(id string) string {
 	return strings.TrimSpace(id)
 }
