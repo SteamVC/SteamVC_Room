@@ -1,3 +1,10 @@
+// Package main は SteamVC Room API サーバーのエントリーポイント
+//
+// このサーバーは以下の機能を提供します:
+// - 音声チャットルームの作成・管理
+// - ユーザーの参加・退出処理
+// - WebSocketによるリアルタイム通信
+// - Redisによるルーム情報の永続化
 package main
 
 import (
@@ -9,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/SteamVC/SteamVC_Room/backend/api-server/internal/config"
 	"github.com/SteamVC/SteamVC_Room/backend/api-server/internal/handlers"
 	httpx "github.com/SteamVC/SteamVC_Room/backend/api-server/internal/http"
 	"github.com/SteamVC/SteamVC_Room/backend/api-server/internal/repo"
@@ -16,25 +24,20 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-const (
-	defaultTTLSec = 60 * 60 // 1時間
-)
-
-func getEnvOrDefault(key, def string) string {
-	v := os.Getenv(key)
-	if v == "" {
-		return def
-	}
-	return v
-}
-
+// main はアプリケーションの起動処理を行います
+// 以下の手順で初期化とサーバー起動を行います:
+// 1. 設定の読み込み
+// 2. Redisクライアントの初期化と接続確認
+// 3. 各レイヤー（Repository, Service, Handler）の初期化
+// 4. HTTPサーバーの起動
+// 5. Graceful Shutdownの実装
 func main() {
-	addr := getEnvOrDefault("API_ADDR", ":8080")
-	redisAddr := getEnvOrDefault("REDIS_ADDR", "localhost:6379")
-	ttlSec := defaultTTLSec
+	// 環境変数から設定を読み込む
+	cfg := config.Load()
 
+	// Redisクライアントの作成と接続設定
 	rdb := redis.NewClient(&redis.Options{
-		Addr:         redisAddr,
+		Addr:         cfg.RedisAddr,
 		PoolSize:     10,              // 接続プールサイズ
 		MinIdleConns: 5,               // 最小アイドル接続数
 		MaxRetries:   3,               // リトライ回数
@@ -50,15 +53,21 @@ func main() {
 	}
 	log.Println("connected to redis")
 
+	// 依存性を注入しながら各レイヤーを初期化
+	// Repository層: データの永続化を担当
 	rr := repo.NewRedisRoomRepo(rdb)
+	// ID生成器: ユニークなルームIDを生成
 	idg := service.NewRoomIDGenerator()
-	svc := service.NewRoomService(rr, idg, ttlSec)
+	// Service層: ビジネスロジックを担当
+	svc := service.NewRoomService(rr, idg, cfg.RoomTTL)
+	// Handler層: HTTPリクエストの処理を担当
 	h := handlers.NewRoomHandler(svc)
 	wsHandler := handlers.NewWebSocketHandler(svc)
-	router := httpx.NewRouter(h, wsHandler)
+	// ルーター: エンドポイントとハンドラーのマッピング
+	router := httpx.NewRouter(h, wsHandler, cfg.AllowedOrigin)
 
 	srv := &http.Server{
-		Addr:              addr,
+		Addr:              cfg.APIAddr,
 		Handler:           router,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
@@ -69,7 +78,7 @@ func main() {
 
 	// サーバーを別goroutineで起動
 	go func() {
-		log.Printf("listening on %s", addr)
+		log.Printf("listening on %s", cfg.APIAddr)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("server error: %v", err)
 		}

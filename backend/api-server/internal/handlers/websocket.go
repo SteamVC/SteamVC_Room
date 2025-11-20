@@ -12,75 +12,86 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		// 本番環境では適切なOriginチェックを実装してください
-		return true
-	},
-}
-
 // RoomHub は部屋ごとのWebSocket接続を管理します
+// スレッドセーフな実装により、複数のgoroutineから同時にアクセス可能です
 type RoomHub struct {
-	rooms map[string]*Room
-	mu    sync.RWMutex
+	rooms map[string]*Room // ルームIDをキーとしたルームのマップ
+	mu    sync.RWMutex     // 読み書きのロック
 }
 
 // Room は1つの部屋のWebSocket接続を管理します
+// 各ルームは複数のクライアント（ユーザー）の接続を保持します
 type Room struct {
-	roomId  string
-	clients map[string]*Client
-	mu      sync.RWMutex
+	roomId  string              // ルームID
+	clients map[string]*Client  // ユーザーIDをキーとしたクライアントのマップ
+	mu      sync.RWMutex        // 読み書きのロック
 }
 
 // Client は1つのWebSocket接続を表します
+// ユーザーとWebSocket接続の関連付けを保持します
 type Client struct {
-	userId string
-	conn   *websocket.Conn
-	room   *Room
-}
-
-var hub = &RoomHub{
-	rooms: make(map[string]*Room),
+	userId string          // ユーザーID
+	conn   *websocket.Conn // WebSocket接続
+	room   *Room           // 所属するルーム
 }
 
 // WebSocketMessage はWebSocketで送受信するメッセージの構造
+// すべてのメッセージはこの形式でやり取りされます
 type WebSocketMessage struct {
-	Type    string      `json:"type"`
-	Payload interface{} `json:"payload"`
+	Type    string      `json:"type"`    // メッセージタイプ (例: "user_joined", "user_left", "mute_state")
+	Payload interface{} `json:"payload"` // メッセージのペイロード（型は動的）
 }
 
 // LeavePayload はユーザー退出時のペイロード
 type LeavePayload struct {
-	UserId    string `json:"userId"`
-	UserName  string `json:"userName,omitempty"`
-	UserImage string `json:"userImage,omitempty"`
+	UserId    string `json:"userId"`                // 退出するユーザーのID
+	UserName  string `json:"userName,omitempty"`    // ユーザー名（オプショナル）
+	UserImage string `json:"userImage,omitempty"`   // ユーザーのアイコン画像URL（オプショナル）
 }
 
-// MuteStatePayload はミュート用のペイロード
+// MuteStatePayload はミュート状態変更時のペイロード
 type MuteStatePayload struct {
-	UserId  string `json:"userId"`
-	IsMuted bool   `json:"isMuted"`
+	UserId  string `json:"userId"`  // 対象ユーザーのID
+	IsMuted bool   `json:"isMuted"` // ミュート状態（true: ミュート中、false: ミュート解除）
 }
 
 // JoinPayload はユーザー参加時のペイロード
 type JoinPayload struct {
-	UserId    string `json:"userId"`
-	UserName  string `json:"userName,omitempty"`
-	UserImage string `json:"userImage,omitempty"`
+	UserId    string `json:"userId"`                // 参加するユーザーのID
+	UserName  string `json:"userName,omitempty"`    // ユーザー名（オプショナル）
+	UserImage string `json:"userImage,omitempty"`   // ユーザーのアイコン画像URL（オプショナル）
 }
 
+// WebSocketHandler はWebSocket接続を処理するハンドラー
 type WebSocketHandler struct {
-	svc *service.RoomService
+	svc      *service.RoomService // ビジネスロジックを担当するサービス
+	hub      *RoomHub             // WebSocket接続を管理するハブ
+	upgrader websocket.Upgrader   // HTTPからWebSocketへのアップグレーダー
 }
 
+// NewWebSocketHandler は新しいWebSocketHandlerを作成します
 func NewWebSocketHandler(s *service.RoomService) *WebSocketHandler {
-	return &WebSocketHandler{svc: s}
+	return &WebSocketHandler{
+		svc: s,
+		hub: &RoomHub{rooms: make(map[string]*Room)},
+		upgrader: websocket.Upgrader{
+			CheckOrigin: func(r *http.Request) bool {
+				// 本番環境では適切なOriginチェックを実装してください
+				return true
+			},
+		},
+	}
 }
 
 // HandleWebSocket はWebSocket接続を処理します
+// 接続後、以下の処理を行います:
+// 1. HTTPからWebSocketへのアップグレード
+// 2. クライアントの登録
+// 3. メッセージ受信ループの開始
+// 4. 切断時の自動退出処理とクリーンアップ
 func (h *WebSocketHandler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
-	roomId := chi.URLParam(r, "roomId")
-	userId := r.URL.Query().Get("userId")
+	roomId := normalizeID(chi.URLParam(r, "roomId"))
+	userId := normalizeID(r.URL.Query().Get("userId"))
 
 	if err := validateRoomId(roomId); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -92,14 +103,14 @@ func (h *WebSocketHandler) HandleWebSocket(w http.ResponseWriter, r *http.Reques
 	}
 
 	// WebSocket接続にアップグレード
-	conn, err := upgrader.Upgrade(w, r, nil)
+	conn, err := h.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("WebSocket upgrade error: %v", err)
 		return
 	}
 
 	// クライアントを登録
-	client := registerClient(roomId, userId, conn)
+	client := h.hub.registerClient(roomId, userId, conn)
 	defer func() {
 		// WebSocket切断時にユーザーをルームから退出させる
 		if err := h.svc.Leave(context.Background(), roomId, userId); err != nil {
@@ -108,7 +119,7 @@ func (h *WebSocketHandler) HandleWebSocket(w http.ResponseWriter, r *http.Reques
 			log.Printf("User auto-left on disconnect: roomId=%s, userId=%s", roomId, userId)
 
 			// 他のユーザーに退出を通知
-			broadcastToRoom(client.room, WebSocketMessage{
+			h.hub.broadcastToRoom(client.room, WebSocketMessage{
 				Type: "user_left",
 				Payload: LeavePayload{
 					UserId: userId,
@@ -116,7 +127,7 @@ func (h *WebSocketHandler) HandleWebSocket(w http.ResponseWriter, r *http.Reques
 			}, userId)
 		}
 
-		unregisterClient(client)
+		h.hub.unregisterClient(client)
 		conn.Close()
 	}()
 
@@ -152,6 +163,11 @@ func (h *WebSocketHandler) HandleWebSocket(w http.ResponseWriter, r *http.Reques
 }
 
 // handleLeave はユーザーの退出を処理します
+// 処理の流れ:
+// 1. ペイロードをLeavePayload型にパース
+// 2. リクエストユーザーの本人確認
+// 3. サービス層で退出処理を実行
+// 4. 同じルームの他のユーザーに退出を通知
 func (h *WebSocketHandler) handleLeave(client *Client, payload interface{}) {
 	// payloadをLeavePayloadに変換
 	payloadBytes, err := json.Marshal(payload)
@@ -186,7 +202,7 @@ func (h *WebSocketHandler) handleLeave(client *Client, payload interface{}) {
 	}
 
 	// 同じ部屋の他のユーザーに退出を通知
-	broadcastToRoom(client.room, WebSocketMessage{
+	h.hub.broadcastToRoom(client.room, WebSocketMessage{
 		Type: "user_left",
 		Payload: LeavePayload{
 			UserId:    leavePayload.UserId,
@@ -198,6 +214,12 @@ func (h *WebSocketHandler) handleLeave(client *Client, payload interface{}) {
 	log.Printf("User left via WebSocket: roomId=%s, userId=%s", client.room.roomId, leavePayload.UserId)
 }
 
+// handleMuteState はユーザーのミュート状態変更を処理します
+// 処理の流れ:
+// 1. ペイロードをMuteStatePayload型にパース
+// 2. リクエストユーザーの本人確認
+// 3. サービス層でミュート状態を更新
+// 4. 同じルームの他のユーザーに状態変更を通知
 func (h *WebSocketHandler) handleMuteState(client *Client, payload interface{}) {
 	// payloadをMutePayloadに変換
 	payloadBytes, err := json.Marshal(payload)
@@ -230,7 +252,7 @@ func (h *WebSocketHandler) handleMuteState(client *Client, payload interface{}) 
 	}
 
 	// 他のユーザーに通知
-	broadcastToRoom(client.room, WebSocketMessage{
+	h.hub.broadcastToRoom(client.room, WebSocketMessage{
 		Type: "user_mute_state_changed",
 		Payload: MuteStatePayload{
 			UserId:  muteStatePayload.UserId,
@@ -242,7 +264,9 @@ func (h *WebSocketHandler) handleMuteState(client *Client, payload interface{}) 
 }
 
 // registerClient はクライアントを登録します
-func registerClient(roomId, userId string, conn *websocket.Conn) *Client {
+// 新しいユーザーがルームに接続した際に呼ばれます
+// ルームが存在しない場合は新規作成し、既存の参加者に参加通知を送信します
+func (hub *RoomHub) registerClient(roomId, userId string, conn *websocket.Conn) *Client {
 	hub.mu.Lock()
 	defer hub.mu.Unlock()
 
@@ -266,7 +290,7 @@ func registerClient(roomId, userId string, conn *websocket.Conn) *Client {
 	room.mu.Unlock()
 
 	// 既存の参加者に新しいユーザーの参加を通知
-	broadcastToRoom(room, WebSocketMessage{
+	hub.broadcastToRoom(room, WebSocketMessage{
 		Type: "user_joined",
 		Payload: JoinPayload{
 			UserId: userId,
@@ -279,7 +303,9 @@ func registerClient(roomId, userId string, conn *websocket.Conn) *Client {
 }
 
 // unregisterClient はクライアントの登録を解除します
-func unregisterClient(client *Client) {
+// WebSocket接続が切断された際に呼ばれます
+// ルームが空になった場合はルーム自体を削除します
+func (hub *RoomHub) unregisterClient(client *Client) {
 	room := client.room
 	room.mu.Lock()
 	delete(room.clients, client.userId)
@@ -288,14 +314,21 @@ func unregisterClient(client *Client) {
 
 	// 部屋が空になったら削除
 	if isEmpty {
-		hub.mu.Lock()
-		delete(hub.rooms, room.roomId)
-		hub.mu.Unlock()
+		hub.deleteRoom(room.roomId)
 	}
 }
 
+// deleteRoom はルームを削除します
+// ルームが空になった際に呼ばれます
+func (hub *RoomHub) deleteRoom(roomId string) {
+	hub.mu.Lock()
+	defer hub.mu.Unlock()
+	delete(hub.rooms, roomId)
+}
+
 // broadcastToRoom は部屋内の全クライアントにメッセージを送信します（送信者を除く）
-func broadcastToRoom(room *Room, msg WebSocketMessage, excludeUserId string) {
+// 参加・退出・ミュート状態変更などのイベントを他のユーザーに通知する際に使用します
+func (hub *RoomHub) broadcastToRoom(room *Room, msg WebSocketMessage, excludeUserId string) {
 	room.mu.RLock()
 	defer room.mu.RUnlock()
 

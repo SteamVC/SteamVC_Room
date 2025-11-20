@@ -1,3 +1,5 @@
+// Package repo はデータの永続化を担当します
+// Redisを使用してルームとユーザー情報を管理します
 package repo
 
 import (
@@ -11,28 +13,39 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// ErrUserNotFound はユーザーが見つからない場合のエラー
 var ErrUserNotFound = errors.New("user not found")
 
+// RedisRoomRepo はRedisを使用したルームリポジトリの実装
 type RedisRoomRepo struct{ rdb *redis.Client }
 
+// NewRedisRoomRepo は新しいRedisRoomRepoを作成します
 func NewRedisRoomRepo(rdb *redis.Client) *RedisRoomRepo {
 	return &RedisRoomRepo{rdb: rdb}
 }
 
+// roomKey はルーム情報のRedisキーを生成します
 func roomKey(id string) string {
 	return fmt.Sprintf("rooms:%s", id)
 }
+
+// usersKey はルームの参加者リストのRedisキーを生成します
 func usersKey(id string) string {
 	return fmt.Sprintf("rooms:%s:users", id)
 }
+
+// userKey はユーザー情報のRedisキーを生成します
 func userKey(rid, uid string) string {
 	return fmt.Sprintf("users:%s:%s", rid, uid)
 }
 
+// sec は秒数をtime.Durationに変換します
 func sec(v int) time.Duration {
 	return time.Duration(v) * time.Second
 }
 
+// CreateRoom は新しいルームをRedisに保存します
+// SET NXコマンドを使用して、既存のルームIDとの重複を防ぎます
 func (rr *RedisRoomRepo) CreateRoom(ctx context.Context, room models.Room, ttlSec int) error {
 	b, err := json.Marshal(room)
 	if err != nil {
@@ -49,6 +62,8 @@ func (rr *RedisRoomRepo) CreateRoom(ctx context.Context, room models.Room, ttlSe
 	return nil
 }
 
+// GetRoom は指定されたルームの情報を取得します
+// ルームが存在しない場合は、存在フラグがfalseで返ります
 func (rr *RedisRoomRepo) GetRoom(ctx context.Context, roomId string) (models.Room, bool, error) {
 	val, err := rr.rdb.Get(ctx, roomKey(roomId)).Bytes()
 	if err == redis.Nil { // データがない
@@ -64,6 +79,9 @@ func (rr *RedisRoomRepo) GetRoom(ctx context.Context, roomId string) (models.Roo
 	return r, true, nil
 }
 
+// DeleteRoom はルームとその関連データを削除します
+// Luaスクリプトを使用してアトミックに処理します
+// 削除対象: ルーム情報、参加者リスト、全参加者の個別データ
 func (rr *RedisRoomRepo) DeleteRoom(ctx context.Context, roomId string) error {
 	// Luaスクリプトでアトミックに処理
 	script := `
@@ -92,6 +110,11 @@ func (rr *RedisRoomRepo) DeleteRoom(ctx context.Context, roomId string) error {
 	return rr.rdb.Eval(ctx, script, []string{roomKey(roomId), usersKey(roomId)}, roomId).Err()
 }
 
+// AddUser はユーザーをルームに追加します
+// トランザクションパイプラインを使用して、以下を同時に実行します:
+// 1. ユーザー情報の保存
+// 2. 参加者リストへの追加
+// 3. TTLの更新
 func (rr *RedisRoomRepo) AddUser(ctx context.Context, roomId string, user models.User, ttlSec int) error {
 	b, err := json.Marshal(user)
 	if err != nil {
@@ -107,6 +130,8 @@ func (rr *RedisRoomRepo) AddUser(ctx context.Context, roomId string, user models
 	return err
 }
 
+// RemoveUser はユーザーをルームから削除します
+// トランザクションパイプラインを使用して、参加者リストとユーザー情報を削除します
 func (rr *RedisRoomRepo) RemoveUser(ctx context.Context, roomId, userId string) error {
 	pipe := rr.rdb.TxPipeline()
 	pipe.SRem(ctx, usersKey(roomId), userId)
@@ -115,6 +140,11 @@ func (rr *RedisRoomRepo) RemoveUser(ctx context.Context, roomId, userId string) 
 	return err
 }
 
+// ListUser はルームの参加者一覧を取得します
+// 処理の流れ:
+// 1. 参加者リストからユーザーIDを取得
+// 2. 各ユーザーの詳細情報をMGETで一括取得
+// 3. JSONをデシリアライズしてUserスライスに変換
 func (rr *RedisRoomRepo) ListUser(ctx context.Context, roomId string) ([]models.User, error) {
 	ids, err := rr.rdb.SMembers(ctx, usersKey(roomId)).Result()
 	if err != nil {
@@ -153,6 +183,11 @@ func (rr *RedisRoomRepo) ListUser(ctx context.Context, roomId string) ([]models.
 	return res, nil
 }
 
+// UpdateUserMute はユーザーのミュート状態を更新します
+// 処理の流れ:
+// 1. ユーザー情報を取得
+// 2. ミュート状態を更新
+// 3. 元のTTLを維持してRedisに保存
 func (rr *RedisRoomRepo) UpdateUserMute(ctx context.Context, roomId, userId string, isMuted bool) error {
 	key := userKey(roomId, userId)
 
@@ -186,6 +221,9 @@ func (rr *RedisRoomRepo) UpdateUserMute(ctx context.Context, roomId, userId stri
 	return rr.rdb.Set(ctx, key, data, 0).Err()
 }
 
+// TouchRoom はルームとその関連データのTTLを更新します
+// Luaスクリプトを使用してアトミックに処理します
+// 更新対象: ルーム情報、参加者リスト、全参加者の個別データ
 func (rr *RedisRoomRepo) TouchRoom(ctx context.Context, roomId string, ttlSec int) error {
 	// Luaスクリプトでアトミックに処理
 	script := `
@@ -209,6 +247,7 @@ func (rr *RedisRoomRepo) TouchRoom(ctx context.Context, roomId string, ttlSec in
 	return rr.rdb.Eval(ctx, script, []string{roomKey(roomId), usersKey(roomId)}, ttlSec, roomId).Err()
 }
 
+// ExistsRoom はルームが存在するかを確認します
 func (rr *RedisRoomRepo) ExistsRoom(ctx context.Context, roomId string) (bool, error) {
 	n, err := rr.rdb.Exists(ctx, roomKey(roomId)).Result()
 	return n == 1, err
