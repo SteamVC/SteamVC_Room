@@ -2,11 +2,11 @@
   "name": "steamvc-sfu-server",
   "version": "1.0.0",
   "description": "SFU Server with Mediasoup for voice streaming",
-  "main": "dist/server.js",
+  "main": "dist/index.js",
   "scripts": {
-    "dev": "ts-node src/server.ts",
+    "dev": "ts-node src/index.ts",
     "build": "tsc",
-    "start": "node dist/server.js"
+    "start": "node dist/index.js"
   },
   "dependencies": {
     "axios": "^1.6.2",
