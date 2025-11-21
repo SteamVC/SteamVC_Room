@@ -406,7 +406,7 @@ export default function RoomPage() {
 
       // ホストの場合はルームを削除
       if (ownerId && userId === ownerId) {
-        await roomService.roomServiceDeleteRoom(roomId, userId);
+        await roomService.roomServiceDeleteRoom(roomId);
         console.log('Room deleted by owner');
       } else {
         // 一般参加者の場合はleave APIを呼ぶ
