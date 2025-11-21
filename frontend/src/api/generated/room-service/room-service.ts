@@ -8,7 +8,8 @@ import type {
   V1CreateRoomRequest,
   V1CreateRoomResponse,
   V1GetRoomResponse,
-  V1StandardResponse
+  V1StandardResponse,
+  V1UserRequest
 } from '.././models';
 
 import { customAxiosInstance } from '../../axios-instance';
@@ -28,9 +29,10 @@ const roomServiceCreateRoom = (
     }
   const roomServiceDeleteRoom = (
     roomId: string,
+    v1UserRequest: V1UserRequest,
  ) => {
       return customAxiosInstance<V1StandardResponse>(
-      {url: `/api/v1/room/delete/${roomId}`, method: 'DELETE'
+      {url: `/api/v1/room/delete/${roomId}`, method: 'DELETE', data: v1UserRequest
     },
       );
     }
