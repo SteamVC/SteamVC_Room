@@ -40,7 +40,8 @@ export default function Page() {
         }
         // レスポンスからルームIDを取得してページ遷移
         console.log('Room created:', response.data);
-        router.push(`/room/${response.data.roomId}?name=${encodeURIComponent(userName)}`);
+        const destination = `/room/${response.data.roomId}?name=${encodeURIComponent(userName)}`;
+        router.push(`/voice-recorder?next=${encodeURIComponent(destination)}&nextLabel=${encodeURIComponent('ルームに入室')}`);
       } else {
         alert('ルーム作成に失敗しました');
       }
@@ -67,7 +68,8 @@ export default function Page() {
         if (typeof window !== 'undefined') {
           sessionStorage.setItem(`steamvc_user_${roomId}`, userId);
         }
-        router.push(`/room/${roomId}?name=${encodeURIComponent(userName)}`);
+        const destination = `/room/${roomId}?name=${encodeURIComponent(userName)}`;
+        router.push(`/voice-recorder?next=${encodeURIComponent(destination)}&nextLabel=${encodeURIComponent('ルームに入室')}`);
       } else {
         alert('指定されたルームが見つかりません');
       }
@@ -86,5 +88,11 @@ export default function Page() {
   }
 
 
-  return <Home onCreateRoom={handleCreateRoom} onJoinRoom={handleJoinRoom} />;
+  return (
+    <Home
+      onCreateRoom={handleCreateRoom}
+      onJoinRoom={handleJoinRoom}
+      onOpenRecorder={() => router.push('/voice-recorder')}
+    />
+  );
 }
