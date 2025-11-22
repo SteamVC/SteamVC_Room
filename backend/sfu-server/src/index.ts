@@ -20,7 +20,7 @@ import path from 'path';
 import axios from 'axios';
 import FormData from 'form-data';
 import { Readable } from 'stream';
-import { VAD } from 'node-vad';
+const VAD = require('node-vad');
 
 type Direction = 'send' | 'recv';
 
@@ -199,7 +199,7 @@ class VoiceConversionPipeline {
   private userId: string;
   private router: Router;
   private voiceConverter: VoiceConverter;
-  private vad: VAD;
+  private vad: any;
   private inputTransport?: PlainTransport;
   private inputConsumer?: Consumer;
   private outputTransport?: PlainTransport;
@@ -210,7 +210,8 @@ class VoiceConversionPipeline {
   private onSpeakingChange?: (isSpeaking: boolean) => void;
   private tempDir: string;
   private chunkCounter = 0;
-  private processingQueue: string[] = [];
+  private pcmBuffer: Buffer = Buffer.alloc(0);
+  private readonly chunkSizeBytes: number;
 
   constructor(userId: string, router: Router, voiceConverter: VoiceConverter, onSpeakingChange?: (isSpeaking: boolean) => void) {
     this.userId = userId;
@@ -219,6 +220,8 @@ class VoiceConversionPipeline {
     this.vad = new VAD(VAD.Mode.AGGRESSIVE);
     this.onSpeakingChange = onSpeakingChange;
     this.tempDir = fs.mkdtempSync(path.join(os.tmpdir(), `vc-${userId}-`));
+    // 500ms分のPCMデータサイズ: 16kHz * 1ch * 2bytes * 0.5s = 16000バイト
+    this.chunkSizeBytes = VOICE_CONVERSION_SAMPLE_RATE * 2 * (CHUNK_LEN_MS / 1000);
   }
 
   async start(sourceProducer: Producer): Promise<Producer> {
@@ -289,66 +292,103 @@ class VoiceConversionPipeline {
   }
 
   private startInputFFmpeg(sdpPath: string) {
-    const segmentPattern = path.join(this.tempDir, 'chunk_%d.wav');
-
     const args = [
       '-protocol_whitelist', 'file,udp,rtp',
       '-f', 'sdp',
       '-i', sdpPath,
-      '-f', 'segment',
-      '-segment_time', `${CHUNK_LEN_MS / 1000}`,
       '-ar', `${VOICE_CONVERSION_SAMPLE_RATE}`,
       '-ac', '1',
-      '-c:a', 'pcm_s16le',
-      segmentPattern
+      '-f', 's16le',
+      '-'
     ];
 
     this.ffmpegInput = spawn('ffmpeg', args);
+
     this.ffmpegInput.stderr.on('data', (data) => {
-      console.error(`[${this.userId}] FFmpeg input: ${data.toString()}`);
-    });
-
-    // ファイル監視: 新しいチャンクが作成されたら変換処理
-    this.watchChunks();
-  }
-
-  private watchChunks() {
-    const watcher = fs.watch(this.tempDir, async (eventType, filename) => {
-      if (eventType === 'rename' && filename && filename.startsWith('chunk_') && filename.endsWith('.wav')) {
-        const chunkPath = path.join(this.tempDir, filename);
-
-        // ファイルが完全に書き込まれるまで待機
-        setTimeout(async () => {
-          try {
-            const audioBuffer = fs.readFileSync(chunkPath);
-
-            // VAD検出
-            const vadResult = await this.vad.processAudio(audioBuffer, VOICE_CONVERSION_SAMPLE_RATE);
-            const speaking = vadResult === VAD.Event.VOICE;
-
-            if (speaking !== this.isSpeaking) {
-              this.isSpeaking = speaking;
-              this.onSpeakingChange?.(speaking);
-              console.log(`[${this.userId}] VAD: ${speaking ? 'SPEAKING' : 'SILENCE'}`);
-            }
-
-            // 声質変換
-            const convertedBuffer = await this.voiceConverter.convertChunk(audioBuffer);
-
-            if (convertedBuffer) {
-              // 変換済みチャンクをFFmpegに送信
-              this.feedConvertedChunk(convertedBuffer);
-              console.log(`[${this.userId}] Converted chunk sent to output (${convertedBuffer.length} bytes)`);
-            }
-
-            // 元のチャンク削除
-            fs.unlinkSync(chunkPath);
-          } catch (e) {
-            console.error(`[${this.userId}] Chunk processing error:`, e);
-          }
-        }, 100);
+      const log = data.toString();
+      if (!log.includes('size=') && !log.includes('time=')) {
+        console.error(`[${this.userId}] FFmpeg input: ${log}`);
       }
     });
+
+    // stdoutからPCMストリームを受け取る
+    this.ffmpegInput.stdout.on('data', (data: Buffer) => {
+      this.onPcmData(data);
+    });
+
+    this.ffmpegInput.on('close', (code) => {
+      console.log(`[${this.userId}] FFmpeg input closed with code ${code}`);
+    });
+  }
+
+  private onPcmData(data: Buffer) {
+    // バッファに追加
+    this.pcmBuffer = Buffer.concat([this.pcmBuffer, data]);
+
+    // 500ms分のチャンクが溜まったら処理
+    while (this.pcmBuffer.length >= this.chunkSizeBytes) {
+      const chunk = this.pcmBuffer.slice(0, this.chunkSizeBytes);
+      this.pcmBuffer = this.pcmBuffer.slice(this.chunkSizeBytes);
+
+      // 非同期で処理
+      this.processChunk(chunk).catch(e => {
+        console.error(`[${this.userId}] Chunk processing error:`, e);
+      });
+    }
+  }
+
+  private async processChunk(pcmData: Buffer) {
+    try {
+      // VAD検出
+      const vadResult = await this.vad.processAudio(pcmData, VOICE_CONVERSION_SAMPLE_RATE);
+      const speaking = vadResult === VAD.Event.VOICE;
+
+      if (speaking !== this.isSpeaking) {
+        this.isSpeaking = speaking;
+        this.onSpeakingChange?.(speaking);
+        console.log(`[${this.userId}] VAD: ${speaking ? 'SPEAKING' : 'SILENCE'}`);
+      }
+
+      // PCMをWAVに変換してAPI送信
+      const wavBuffer = this.createWavBuffer(pcmData);
+      const convertedBuffer = await this.voiceConverter.convertChunk(wavBuffer);
+
+      if (convertedBuffer) {
+        // 変換済みチャンクをFFmpegに送信
+        this.feedConvertedChunk(convertedBuffer);
+        console.log(`[${this.userId}] Converted chunk sent to output (${convertedBuffer.length} bytes)`);
+      }
+    } catch (e) {
+      console.error(`[${this.userId}] Process chunk error:`, e);
+    }
+  }
+
+  private createWavBuffer(pcmData: Buffer): Buffer {
+    // WAVヘッダーを作成
+    const header = Buffer.alloc(44);
+    const dataSize = pcmData.length;
+    const fileSize = dataSize + 36;
+
+    // RIFF header
+    header.write('RIFF', 0);
+    header.writeUInt32LE(fileSize, 4);
+    header.write('WAVE', 8);
+
+    // fmt chunk
+    header.write('fmt ', 12);
+    header.writeUInt32LE(16, 16); // fmt chunk size
+    header.writeUInt16LE(1, 20); // PCM format
+    header.writeUInt16LE(1, 22); // mono
+    header.writeUInt32LE(VOICE_CONVERSION_SAMPLE_RATE, 24); // sample rate
+    header.writeUInt32LE(VOICE_CONVERSION_SAMPLE_RATE * 2, 28); // byte rate
+    header.writeUInt16LE(2, 32); // block align
+    header.writeUInt16LE(16, 34); // bits per sample
+
+    // data chunk
+    header.write('data', 36);
+    header.writeUInt32LE(dataSize, 40);
+
+    return Buffer.concat([header, pcmData]);
   }
 
   private startOutputFFmpeg(outputPort: number) {
