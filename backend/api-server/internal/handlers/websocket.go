@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/SteamVC/SteamVC_Room/backend/api-server/internal/service"
@@ -22,17 +23,19 @@ type RoomHub struct {
 // Room は1つの部屋のWebSocket接続を管理します
 // 各ルームは複数のクライアント（ユーザー）の接続を保持します
 type Room struct {
-	roomId  string              // ルームID
-	clients map[string]*Client  // ユーザーIDをキーとしたクライアントのマップ
-	mu      sync.RWMutex        // 読み書きのロック
+	roomId  string             // ルームID
+	clients map[string]*Client // ユーザーIDをキーとしたクライアントのマップ
+	mu      sync.RWMutex       // 読み書きのロック
 }
 
 // Client は1つのWebSocket接続を表します
-// ユーザーとWebSocket接続の関連付けを保持します
+// ユーザーとWebSocket接続の関連付け、表示名、アイコンを保持します
 type Client struct {
-	userId string          // ユーザーID
-	conn   *websocket.Conn // WebSocket接続
-	room   *Room           // 所属するルーム
+	userId    string          // ユーザーID
+	userName  string          // 表示名（通知用）
+	userImage string          // アイコンURL（通知用）
+	conn      *websocket.Conn // WebSocket接続
+	room      *Room           // 所属するルーム
 }
 
 // WebSocketMessage はWebSocketで送受信するメッセージの構造
@@ -44,9 +47,9 @@ type WebSocketMessage struct {
 
 // LeavePayload はユーザー退出時のペイロード
 type LeavePayload struct {
-	UserId    string `json:"userId"`                // 退出するユーザーのID
-	UserName  string `json:"userName,omitempty"`    // ユーザー名（オプショナル）
-	UserImage string `json:"userImage,omitempty"`   // ユーザーのアイコン画像URL（オプショナル）
+	UserId    string `json:"userId"`              // 退出するユーザーのID
+	UserName  string `json:"userName,omitempty"`  // ユーザー名（オプショナル）
+	UserImage string `json:"userImage,omitempty"` // ユーザーのアイコン画像URL（オプショナル）
 }
 
 // MuteStatePayload はミュート状態変更時のペイロード
@@ -57,9 +60,15 @@ type MuteStatePayload struct {
 
 // JoinPayload はユーザー参加時のペイロード
 type JoinPayload struct {
-	UserId    string `json:"userId"`                // 参加するユーザーのID
-	UserName  string `json:"userName,omitempty"`    // ユーザー名（オプショナル）
-	UserImage string `json:"userImage,omitempty"`   // ユーザーのアイコン画像URL（オプショナル）
+	UserId    string `json:"userId"`              // 参加するユーザーのID
+	UserName  string `json:"userName,omitempty"`  // ユーザー名（オプショナル）
+	UserImage string `json:"userImage,omitempty"` // ユーザーのアイコン画像URL（オプショナル）
+}
+
+// RenamePayload は表示名変更時のペイロード
+type RenamePayload struct {
+	UserId   string `json:"userId"`   // 対象ユーザーのID
+	UserName string `json:"userName"` // 新しい表示名
 }
 
 // WebSocketHandler はWebSocket接続を処理するハンドラー
@@ -92,6 +101,7 @@ func NewWebSocketHandler(s *service.RoomService) *WebSocketHandler {
 func (h *WebSocketHandler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	roomId := normalizeID(chi.URLParam(r, "roomId"))
 	userId := normalizeID(r.URL.Query().Get("userId"))
+	var userName, userImage string
 
 	if err := validateRoomId(roomId); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -102,6 +112,16 @@ func (h *WebSocketHandler) HandleWebSocket(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	if _, users, ok, err := h.svc.Get(r.Context(), roomId); err == nil && ok {
+		for _, u := range users {
+			if u.UserId == userId {
+				userName = u.UserName
+				userImage = u.UserImage
+				break
+			}
+		}
+	}
+
 	// WebSocket接続にアップグレード
 	conn, err := h.upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -110,7 +130,7 @@ func (h *WebSocketHandler) HandleWebSocket(w http.ResponseWriter, r *http.Reques
 	}
 
 	// クライアントを登録
-	client := h.hub.registerClient(roomId, userId, conn)
+	client := h.hub.registerClient(roomId, userId, userName, userImage, conn)
 	defer func() {
 		// WebSocket切断時にユーザーをルームから退出させる
 		if err := h.svc.Leave(context.Background(), roomId, userId); err != nil {
@@ -150,6 +170,8 @@ func (h *WebSocketHandler) HandleWebSocket(w http.ResponseWriter, r *http.Reques
 			h.handleLeave(client, msg.Payload)
 		case "mute_state":
 			h.handleMuteState(client, msg.Payload)
+		case "rename":
+			h.handleRename(client, msg.Payload)
 		case "ping":
 			// ping/pongで接続を維持
 			if err := conn.WriteJSON(WebSocketMessage{Type: "pong"}); err != nil {
@@ -206,8 +228,8 @@ func (h *WebSocketHandler) handleLeave(client *Client, payload interface{}) {
 		Type: "user_left",
 		Payload: LeavePayload{
 			UserId:    leavePayload.UserId,
-			UserName:  leavePayload.UserName,
-			UserImage: leavePayload.UserImage,
+			UserName:  client.userName,
+			UserImage: client.userImage,
 		},
 	}, client.userId)
 
@@ -263,10 +285,58 @@ func (h *WebSocketHandler) handleMuteState(client *Client, payload interface{}) 
 	log.Printf("User mute state changed via WebSocket: roomId=%s, userId=%s, isMuted=%t", client.room.roomId, muteStatePayload.UserId, muteStatePayload.IsMuted)
 }
 
+// handleRename はユーザーの表示名変更を処理します
+func (h *WebSocketHandler) handleRename(client *Client, payload interface{}) {
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("Failed to marshal rename payload: %v", err)
+		return
+	}
+
+	var renamePayload RenamePayload
+	if err := json.Unmarshal(payloadBytes, &renamePayload); err != nil {
+		log.Printf("Failed to unmarshal rename payload: %v", err)
+		return
+	}
+
+	if renamePayload.UserId != client.userId {
+		log.Printf("UserId mismatch: expected %s, got %s", client.userId, renamePayload.UserId)
+		return
+	}
+	if strings.TrimSpace(renamePayload.UserName) == "" {
+		log.Printf("userName required for rename")
+		return
+	}
+
+	if err := h.svc.SetUserName(context.Background(), client.room.roomId, renamePayload.UserId, strings.TrimSpace(renamePayload.UserName)); err != nil {
+		log.Printf("Failed to rename user: %v", err)
+		client.conn.WriteJSON(WebSocketMessage{
+			Type: "error",
+			Payload: map[string]string{
+				"message": "Failed to rename user",
+			},
+		})
+		return
+	}
+
+	// 他のユーザーに通知
+	h.hub.broadcastToRoom(client.room, WebSocketMessage{
+		Type: "user_renamed",
+		Payload: RenamePayload{
+			UserId:   renamePayload.UserId,
+			UserName: strings.TrimSpace(renamePayload.UserName),
+		},
+	}, client.userId)
+
+	client.userName = strings.TrimSpace(renamePayload.UserName)
+
+	log.Printf("User renamed via WebSocket: roomId=%s, userId=%s, userName=%s", client.room.roomId, renamePayload.UserId, renamePayload.UserName)
+}
+
 // registerClient はクライアントを登録します
 // 新しいユーザーがルームに接続した際に呼ばれます
 // ルームが存在しない場合は新規作成し、既存の参加者に参加通知を送信します
-func (hub *RoomHub) registerClient(roomId, userId string, conn *websocket.Conn) *Client {
+func (hub *RoomHub) registerClient(roomId, userId, userName, userImage string, conn *websocket.Conn) *Client {
 	hub.mu.Lock()
 	defer hub.mu.Unlock()
 
@@ -280,9 +350,11 @@ func (hub *RoomHub) registerClient(roomId, userId string, conn *websocket.Conn) 
 	}
 
 	client := &Client{
-		userId: userId,
-		conn:   conn,
-		room:   room,
+		userId:    userId,
+		userName:  userName,
+		userImage: userImage,
+		conn:      conn,
+		room:      room,
 	}
 
 	room.mu.Lock()
@@ -293,7 +365,9 @@ func (hub *RoomHub) registerClient(roomId, userId string, conn *websocket.Conn) 
 	hub.broadcastToRoom(room, WebSocketMessage{
 		Type: "user_joined",
 		Payload: JoinPayload{
-			UserId: userId,
+			UserId:    userId,
+			UserName:  userName,
+			UserImage: userImage,
 		},
 	}, userId)
 

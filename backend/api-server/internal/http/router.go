@@ -33,6 +33,7 @@ func NewRouter(h *handlers.RoomHandler, wsHandler *handlers.WebSocketHandler, al
 		r.Post("/{roomId}/join", h.Join)
 		r.Post("/{roomId}/leave", h.Leave)
 		r.Post("/{roomId}/touch", h.Touch)
+		r.Post("/{roomId}/rename", h.Rename)
 		// WebSocketエンドポイント
 		r.Get("/{roomId}/ws", wsHandler.HandleWebSocket)
 	})

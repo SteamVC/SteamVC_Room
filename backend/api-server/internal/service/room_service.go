@@ -14,9 +14,9 @@ import (
 
 // RoomService はルーム管理のビジネスロジックを提供します
 type RoomService struct {
-	repo   repo.RoomRepo  // データ永続化を担当するリポジトリ
-	idg    IDGenerator    // ルームID生成器
-	ttlSec int            // ルームの有効期限（秒）
+	repo   repo.RoomRepo // データ永続化を担当するリポジトリ
+	idg    IDGenerator   // ルームID生成器
+	ttlSec int           // ルームの有効期限（秒）
 }
 
 // IDGenerator はユニークなIDを生成するインターフェース
@@ -147,6 +147,16 @@ func (s *RoomService) Touch(ctx context.Context, roomId string) error {
 // ミュート状態はRedisに保存され、他のユーザーから確認できます
 func (s *RoomService) SetMuteState(ctx context.Context, roomId, userId string, isMuted bool) error {
 	if err := s.repo.UpdateUserMute(ctx, roomId, userId, isMuted); err != nil {
+		if errors.Is(err, repo.ErrUserNotFound) {
+			return ErrUserNotFound
+		}
+		return err
+	}
+	return nil
+}
+
+func (s *RoomService) SetUserName(ctx context.Context, roomId, userId, userName string) error {
+	if err := s.repo.UpdateUserName(ctx, roomId, userId, userName); err != nil {
 		if errors.Is(err, repo.ErrUserNotFound) {
 			return ErrUserNotFound
 		}

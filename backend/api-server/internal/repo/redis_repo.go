@@ -189,6 +189,18 @@ func (rr *RedisRoomRepo) ListUser(ctx context.Context, roomId string) ([]models.
 // 2. ミュート状態を更新
 // 3. 元のTTLを維持してRedisに保存
 func (rr *RedisRoomRepo) UpdateUserMute(ctx context.Context, roomId, userId string, isMuted bool) error {
+	return rr.updateUser(ctx, roomId, userId, func(user *models.User) {
+		user.IsMuted = isMuted
+	})
+}
+
+func (rr *RedisRoomRepo) UpdateUserName(ctx context.Context, roomId, userId, userName string) error {
+	return rr.updateUser(ctx, roomId, userId, func(user *models.User) {
+		user.UserName = userName
+	})
+}
+
+func (rr *RedisRoomRepo) updateUser(ctx context.Context, roomId, userId string, mutate func(*models.User)) error {
 	key := userKey(roomId, userId)
 
 	val, err := rr.rdb.Get(ctx, key).Bytes()
@@ -203,7 +215,8 @@ func (rr *RedisRoomRepo) UpdateUserMute(ctx context.Context, roomId, userId stri
 	if err := json.Unmarshal(val, &user); err != nil {
 		return err
 	}
-	user.IsMuted = isMuted
+
+	mutate(&user)
 
 	data, err := json.Marshal(user)
 	if err != nil {

@@ -41,23 +41,17 @@ export default function RoomPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const roomId = params.id as string;
-  const userName = searchParams.get('name') || '';
+
+  // URLパラメータからuserIdを取得、なければ生成
+  const userIdFromUrl = searchParams.get('userId');
+  const initialNameFromUrl = searchParams.get('name') || '名前なし';
 
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [ownerId, setOwnerId] = useState<string | null>(null);
-  const [userId] = useState<string>(() => {
-    if (typeof window === 'undefined') {
-      return `user_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
-    }
-    const key = `steamvc_user_${roomId}`;
-    const existing = sessionStorage.getItem(key);
-    if (existing) return existing;
-    const fresh = `user_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
-    sessionStorage.setItem(key, fresh);
-    return fresh;
-  });
+  const [userId, setUserId] = useState<string>(userIdFromUrl || `user_${Date.now()}`);
+  const [displayName, setDisplayName] = useState<string>(initialNameFromUrl);
 
   const socketRef = useRef<Socket | null>(null);
   const deviceRef = useRef<Device | null>(null);
@@ -109,7 +103,7 @@ export default function RoomPage() {
   }, []);
 
   // API ServerへのWebSocket接続（ユーザー参加/退出通知用）
-  const { notifyLeave, notifyMuteState } = useRoomWebSocket({
+  const { notifyLeave, notifyMuteState, notifyRename } = useRoomWebSocket({
     roomId,
     userId: userId,
     onUserJoined: (payload) => {
@@ -127,6 +121,9 @@ export default function RoomPage() {
     onUserLeft: (payload) => {
       setParticipants(prev => prev.filter(p => p.id !== payload.userId));
       delete muteStateRef.current[payload.userId];
+    },
+    onUserRenamed: (payload) => {
+      setParticipants(prev => prev.map(p => p.id === payload.userId ? { ...p, name: payload.userName } : p));
     },
     onUserMuteStateChanged: (payload) => {
       updateParticipantMuteState(payload.userId, payload.isMuted);
@@ -196,7 +193,11 @@ export default function RoomPage() {
 
           const isAlreadyJoined = participantsList.some(p => p.id === userId);
           if (!isAlreadyJoined) {
-            await roomService.roomServiceJoinRoom(roomId, { userId, userName });
+            // まだ参加していない場合のみjoinRoomを呼ぶ
+            await roomService.roomServiceJoinRoom(roomId, { userId, userName: displayName });
+            console.log('Joined room:', roomId, 'with userId:', userId);
+
+            // 再度参加者リストを取得
             const updatedResponse = await roomService.roomServiceGetRoom(roomId);
             if (updatedResponse.data.users && Array.isArray(updatedResponse.data.users)) {
               const updatedParticipants: Participant[] = updatedResponse.data.users.map((user: any) => ({
@@ -428,6 +429,18 @@ export default function RoomPage() {
     }
   };
 
+  const handleRename = (nextName: string) => {
+    const trimmed = nextName.trim();
+    if (!trimmed) return;
+
+    // 自分の表示名を即時更新
+    setDisplayName(trimmed);
+    setParticipants(prev => prev.map(p => p.id === userId ? { ...p, name: trimmed } : p));
+
+    // WS経由でバックエンドに反映＆他ユーザーへ通知（leave/mute_stateと同じ運用）
+    notifyRename(trimmed);
+  };
+
   const handleLeave = async () => {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
@@ -451,24 +464,14 @@ export default function RoomPage() {
   };
 
   return (
-    <>
-      <Room
-        roomId={roomId}
-        participants={participants}
-        audioEnabled={audioEnabled}
-        onToggleAudio={toggleAudio}
-        onLeave={handleLeave}
-      />
-      {needsPlaybackResume && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50">
-          <button
-            className="bg-green-600 text-white px-4 py-2 rounded shadow-md"
-            onClick={resumePlayback}
-          >
-            音声を再生する
-          </button>
-        </div>
-      )}
-    </>
+    <Room
+      roomId={roomId}
+      participants={participants}
+      myName={displayName}
+      audioEnabled={audioEnabled}
+      onToggleAudio={toggleAudio}
+      onRename={(name) => handleRename(name)}
+      onLeave={handleLeave}
+    />
   );
 }

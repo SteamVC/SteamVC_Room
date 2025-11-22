@@ -3,8 +3,10 @@
 package handlers
 
 import (
+	"fmt"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/SteamVC/SteamVC_Room/backend/api-server/internal/models"
 	"github.com/SteamVC/SteamVC_Room/backend/api-server/internal/service"
@@ -51,6 +53,22 @@ type joinRequest struct {
 // validate はリクエストのバリデーションを行います
 func (r joinRequest) validate() error {
 	return validateUserId(r.UserId)
+}
+
+// renameRequest は表示名変更APIのリクエストボディ
+type renameRequest struct {
+	UserId   string `json:"userId"`
+	UserName string `json:"userName"`
+}
+
+func (r renameRequest) validate() error {
+	if err := validateUserId(r.UserId); err != nil {
+		return err
+	}
+	if strings.TrimSpace(r.UserName) == "" {
+		return fmt.Errorf("userName required")
+	}
+	return nil
 }
 
 // Create は新しいルームを作成します
@@ -193,6 +211,35 @@ func (h *RoomHandler) Touch(w http.ResponseWriter, r *http.Request) {
 		h.writeServiceError(w, err)
 		return
 	}
+	respondJSON(w, http.StatusOK, map[string]any{"success": true})
+}
+
+// Rename はユーザーの表示名を変更します
+// リクエスト: POST /rooms/{roomId}/rename
+// リクエストボディ: {"userId": "...", "userName": "..."}
+// レスポンス: {"success": true}
+func (h *RoomHandler) Rename(w http.ResponseWriter, r *http.Request) {
+	roomId := normalizeID(chi.URLParam(r, "roomId"))
+	if err := validateRoomId(roomId); err != nil {
+		respondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	var in renameRequest
+	if !decodeJSON(w, r, &in) {
+		return
+	}
+	if err := in.validate(); err != nil {
+		respondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	if err := h.svc.SetUserName(r.Context(), roomId, normalizeID(in.UserId), strings.TrimSpace(in.UserName)); err != nil {
+		log.Printf("Rename user error (roomId=%s, userId=%s): %v", roomId, in.UserId, err)
+		h.writeServiceError(w, err)
+		return
+	}
+
 	respondJSON(w, http.StatusOK, map[string]any{"success": true})
 }
 
