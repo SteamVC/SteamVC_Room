@@ -435,7 +435,7 @@ export default function RoomPage() {
       const roomService = new RoomServiceApi(config);
 
       if (ownerId && userId === ownerId) {
-        await roomService.roomServiceDeleteRoom(roomId, userId);
+        await roomService.roomServiceDeleteRoom(roomId, { userId });
       } else {
         await roomService.roomServiceLeaveRoom(roomId, { userId });
       }
