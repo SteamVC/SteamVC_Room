@@ -2,17 +2,17 @@ import express from 'express';
 import http from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import * as mediasoup from 'mediasoup';
-import type {
-  Worker,
-  Router,
-  WebRtcTransport,
-  Producer,
-  Consumer,
-  RtpCodecCapability,
-  RtpParameters,
-  PlainTransport,
-  MediaKind,
-} from 'mediasoup/node/lib/types';
+import type { types as mediasoupTypes } from 'mediasoup';
+
+type Worker = mediasoupTypes.Worker;
+type Router = mediasoupTypes.Router;
+type WebRtcTransport = mediasoupTypes.WebRtcTransport;
+type Producer = mediasoupTypes.Producer;
+type Consumer = mediasoupTypes.Consumer;
+type RtpCodecCapability = mediasoupTypes.RtpCodecCapability;
+type RtpParameters = mediasoupTypes.RtpParameters;
+type PlainTransport = mediasoupTypes.PlainTransport;
+type MediaKind = mediasoupTypes.MediaKind;
 import { ChildProcessWithoutNullStreams, spawn } from 'child_process';
 import fs from 'fs';
 import os from 'os';
