@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { io, Socket } from 'socket.io-client';
 import { Device, types } from 'mediasoup-client';
@@ -11,6 +11,7 @@ import { RoomServiceApi, Configuration } from '@/api/generated';
 type RtpCapabilities = types.RtpCapabilities;
 type Transport = types.Transport;
 type Producer = types.Producer;
+type Consumer = types.Consumer;
 type MediaKind = types.MediaKind;
 type RtpParameters = types.RtpParameters;
 
@@ -32,6 +33,8 @@ interface SocketResponse {
   rtpParameters?: RtpParameters;
   success?: boolean;
 }
+
+const SFU_URL = process.env.NEXT_PUBLIC_SFU_URL || 'http://localhost:3000';
 
 export default function RoomPage() {
   const params = useParams();
@@ -55,9 +58,12 @@ export default function RoomPage() {
   const producerTransportRef = useRef<Transport | null>(null);
   const consumerTransportRef = useRef<Transport | null>(null);
   const audioProducerRef = useRef<Producer | null>(null);
+  const mixedConsumerRef = useRef<Consumer | null>(null);
+  const audioElementRef = useRef<HTMLAudioElement | null>(null);
   const hasInitializedRef = useRef(false);
   const muteStateRef = useRef<Record<string, boolean>>({});
   const autoStartAttemptedRef = useRef(false);
+  const [needsPlaybackResume, setNeedsPlaybackResume] = useState(false);
 
   const updateParticipantMuteState = useCallback((targetId: string, isMuted: boolean) => {
     muteStateRef.current[targetId] = isMuted;
@@ -84,18 +90,25 @@ export default function RoomPage() {
     });
   }, []);
 
+  const stopMixedAudio = useCallback(() => {
+    if (mixedConsumerRef.current) {
+      mixedConsumerRef.current.close();
+      mixedConsumerRef.current = null;
+    }
+    if (audioElementRef.current) {
+      audioElementRef.current.pause();
+      audioElementRef.current.srcObject = null;
+      audioElementRef.current = null;
+    }
+  }, []);
+
   // API ServerへのWebSocket接続（ユーザー参加/退出通知用）
   const { notifyLeave, notifyMuteState, notifyRename } = useRoomWebSocket({
     roomId,
     userId: userId,
     onUserJoined: (payload) => {
-      console.log('User joined:', payload);
-      // 参加者リストに追加
       setParticipants(prev => {
-        // 既に存在する場合は追加しない
-        if (prev.some(p => p.id === payload.userId)) {
-          return prev;
-        }
+        if (prev.some(p => p.id === payload.userId)) return prev;
         return [...prev, {
           id: payload.userId,
           name: payload.userName || '名前なし',
@@ -106,8 +119,6 @@ export default function RoomPage() {
       });
     },
     onUserLeft: (payload) => {
-      console.log('User left:', payload);
-      // 参加者リストから削除
       setParticipants(prev => prev.filter(p => p.id !== payload.userId));
       delete muteStateRef.current[payload.userId];
     },
@@ -122,48 +133,40 @@ export default function RoomPage() {
     }
   });
 
-  const connectToRoom = async () => {
-    const socket = io('http://localhost:3000');
+  const connectToRoom = useCallback(async () => {
+    const socket = io(SFU_URL);
     socketRef.current = socket;
 
-    socket.on('connect', async () => {
-      console.log('Connected to SFU server');
+    socket.on('connect', () => {
+      socket.emit('join-room', { roomId, userId }, async (response: SocketResponse) => {
+        if (response.error || !response.rtpCapabilities) {
+          console.error('Failed to join MCU server', response.error);
+          return;
+        }
 
-      // ルームに参加
-      socket.emit('join-room', { roomId, userId: socket.id }, async (response: SocketResponse) => {
-        console.log('Joined room, RTP capabilities:', response.rtpCapabilities);
-
-        if (!response.rtpCapabilities) return;
-
-        // Mediasoup Deviceを初期化
         const device = new Device();
-        deviceRef.current = device;
-
         await device.load({ routerRtpCapabilities: response.rtpCapabilities });
-        console.log('Device loaded');
-
+        deviceRef.current = device;
         setIsConnected(true);
       });
     });
 
-    socket.on('new-producer', ({ producerId }) => {
-      console.log('New producer:', producerId);
-      // 新しいプロデューサーが参加したら消費を開始
-      consume(producerId);
-    });
-
-    socket.on('consumer-closed', ({ consumerId }) => {
-      console.log('Consumer closed:', consumerId);
+    socket.on('mix-ready', (payload: { producerId: string | null }) => {
+      if (payload.producerId) {
+        consumeMixed();
+      } else {
+        stopMixedAudio();
+      }
     });
 
     socket.on('disconnect', () => {
-      console.log('Disconnected from SFU server');
       setIsConnected(false);
+      stopMixedAudio();
     });
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomId, userId]);
 
   useEffect(() => {
-    // React Strict Modeでの重複実行を防ぐ
     if (hasInitializedRef.current) {
       return;
     }
@@ -175,14 +178,12 @@ export default function RoomPage() {
         const config = new Configuration({ basePath: apiUrl });
         const roomService = new RoomServiceApi(config);
 
-        // ルーム情報を取得
         const response = await roomService.roomServiceGetRoom(roomId);
 
         if (response.data.room?.ownerId) {
           setOwnerId(response.data.room.ownerId);
         }
 
-        // 参加者リストを設定
         if (response.data.users && Array.isArray(response.data.users)) {
           const participantsList: Participant[] = response.data.users.map((user: any) => ({
             id: user.userId || '',
@@ -190,12 +191,7 @@ export default function RoomPage() {
             isMuted: typeof user.isMuted === 'boolean' ? user.isMuted : false
           }));
 
-          // 自分が既に参加者リストに含まれているかチェック
           const isAlreadyJoined = participantsList.some(p => p.id === userId);
-          console.log('Current userId:', userId);
-          console.log('Participants in room:', participantsList.map(p => p.id));
-          console.log('isAlreadyJoined:', isAlreadyJoined);
-
           if (!isAlreadyJoined) {
             // まだ参加していない場合のみjoinRoomを呼ぶ
             await roomService.roomServiceJoinRoom(roomId, { userId, userName: displayName });
@@ -210,12 +206,9 @@ export default function RoomPage() {
                 isMuted: typeof user.isMuted === 'boolean' ? user.isMuted : false
               }));
               setParticipants(applyStoredMuteState(updatedParticipants));
-              console.log('Loaded participants after join:', updatedParticipants);
             }
           } else {
-            console.log('Already in room:', roomId, 'with userId:', userId);
             setParticipants(applyStoredMuteState(participantsList));
-            console.log('Loaded participants:', participantsList);
           }
         }
       } catch (error) {
@@ -224,19 +217,19 @@ export default function RoomPage() {
     };
 
     initializeRoom();
-
-    // Socket.IO接続
     connectToRoom();
 
     return () => {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-      }
+      socketRef.current?.disconnect();
+      stopMixedAudio();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);
 
   const createTransport = async (direction: 'send' | 'recv'): Promise<Transport | null> => {
+    const rtcConfig = {
+      iceServers: [{ urls: ['stun:stun.l.google.com:19302'] }]
+    };
     return new Promise((resolve) => {
       socketRef.current?.emit('create-transport', { roomId, direction }, async (response: SocketResponse) => {
         if (response.error || !response.id) {
@@ -251,12 +244,14 @@ export default function RoomPage() {
               iceParameters: response.iceParameters,
               iceCandidates: response.iceCandidates,
               dtlsParameters: response.dtlsParameters,
+              iceServers: rtcConfig.iceServers,
             } as any)
           : deviceRef.current?.createRecvTransport({
               id: response.id,
               iceParameters: response.iceParameters,
               iceCandidates: response.iceCandidates,
               dtlsParameters: response.dtlsParameters,
+              iceServers: rtcConfig.iceServers,
             } as any);
 
         if (!transport) {
@@ -268,9 +263,9 @@ export default function RoomPage() {
           socketRef.current?.emit('connect-transport', {
             transportId: transport.id,
             dtlsParameters: params.dtlsParameters
-          }, (response: SocketResponse) => {
-            if (response.error) {
-              errback(new Error(response.error));
+          }, (res: SocketResponse) => {
+            if (res.error) {
+              errback(new Error(res.error));
             } else {
               callback();
             }
@@ -280,14 +275,16 @@ export default function RoomPage() {
         if (direction === 'send') {
           transport.on('produce', (params: { kind: string; rtpParameters: unknown }, callback: (params: { id: string }) => void, errback: (error: Error) => void) => {
             socketRef.current?.emit('produce', {
+              roomId,
               transportId: transport.id,
               kind: params.kind,
-              rtpParameters: params.rtpParameters
-            }, (response: SocketResponse) => {
-              if (response.error) {
-                errback(new Error(response.error));
-              } else if (response.id) {
-                callback({ id: response.id });
+              rtpParameters: params.rtpParameters,
+              userId
+            }, (res: SocketResponse) => {
+              if (res.error) {
+                errback(new Error(res.error));
+              } else if (res.id) {
+                callback({ id: res.id });
               }
             });
           });
@@ -305,29 +302,37 @@ export default function RoomPage() {
     }
 
     try {
-      // マイク音声取得
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
+      });
       const audioTrack = stream.getAudioTracks()[0];
 
-      // Producerトランスポート作成
       if (!producerTransportRef.current) {
         const transport = await createTransport('send');
         if (!transport) return;
         producerTransportRef.current = transport;
       }
 
-      // 音声をプロデュース
       const producer = await producerTransportRef.current.produce({ track: audioTrack });
       audioProducerRef.current = producer;
-
-      console.log('Audio producer created:', producer.id);
       setAudioEnabled(true);
       notifyMuteState(false);
       updateParticipantMuteState(userId, false);
-
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to start audio:', error);
-      alert('マイクへのアクセスが拒否されました');
+      const errName = error?.name || '';
+      if (errName === 'NotAllowedError' || errName === 'SecurityError') {
+        alert('マイクへのアクセスが拒否されました。ブラウザの権限設定を確認してください。');
+      } else if (errName === 'NotFoundError') {
+        alert('入力デバイスが見つかりませんでした。マイクを接続してから再試行してください。');
+      } else {
+        const msg = (typeof error?.message === 'string' && error.message) ? error.message : '不明な理由';
+        alert(`音声の送信開始に失敗しました (${msg})。ネットワーク接続やサーバー状態を確認してください。`);
+      }
     }
   };
 
@@ -350,29 +355,26 @@ export default function RoomPage() {
     updateParticipantMuteState(userId, true);
   };
 
-  const consume = async (producerId: string) => {
+  const consumeMixed = async () => {
     if (!deviceRef.current) return;
 
     try {
-      // Consumerトランスポート作成
       if (!consumerTransportRef.current) {
         const transport = await createTransport('recv');
         if (!transport) return;
         consumerTransportRef.current = transport;
       }
 
-      socketRef.current?.emit('consume', {
-        transportId: consumerTransportRef.current.id,
-        producerId,
+      socketRef.current?.emit('consume-mix', {
+        roomId,
+        userId,
         rtpCapabilities: deviceRef.current.rtpCapabilities
       }, async (response: SocketResponse) => {
-        if (response.error) {
-          console.error('Consume failed:', response.error);
+        if (response.error === 'no mixed producer') {
           return;
         }
-
-        if (!response.id || !response.producerId || !response.kind || !response.rtpParameters) {
-          console.error('Invalid consume response');
+        if (response.error || !response.id || !response.producerId || !response.kind || !response.rtpParameters) {
+          console.error('Consume mix failed:', response.error);
           return;
         }
 
@@ -383,15 +385,39 @@ export default function RoomPage() {
           rtpParameters: response.rtpParameters
         });
 
-        // 音声再生
-        const audio = new Audio();
-        audio.srcObject = new MediaStream([consumer.track]);
-        audio.play();
+        mixedConsumerRef.current?.close();
+        mixedConsumerRef.current = consumer;
 
-        console.log('Audio consumer created:', consumer.id);
+        if (!audioElementRef.current) {
+          audioElementRef.current = new Audio();
+        }
+        audioElementRef.current.srcObject = new MediaStream([consumer.track]);
+        audioElementRef.current.play().catch(() => {
+          console.warn('自動再生がブロックされました。クリックなどの操作後に再試行してください。');
+          setNeedsPlaybackResume(true);
+        });
+        // Chrome で自動再生がサイレントに失敗する場合のフォロー
+        setTimeout(() => {
+          if (audioElementRef.current && audioElementRef.current.paused) {
+            setNeedsPlaybackResume(true);
+          }
+        }, 500);
       });
     } catch (error) {
-      console.error('Consume error:', error);
+      console.error('Consume mixed error:', error);
+    }
+  };
+
+  const resumePlayback = async () => {
+    try {
+      if (audioElementRef.current) {
+        await audioElementRef.current.play();
+        setNeedsPlaybackResume(false);
+      } else {
+        await consumeMixed();
+      }
+    } catch (e) {
+      console.error('再生再開に失敗しました', e);
     }
   };
 
@@ -421,22 +447,18 @@ export default function RoomPage() {
       const config = new Configuration({ basePath: apiUrl });
       const roomService = new RoomServiceApi(config);
 
-      // ホストの場合はルームを削除
       if (ownerId && userId === ownerId) {
         await roomService.roomServiceDeleteRoom(roomId, userId);
-        console.log('Room deleted by owner');
       } else {
-        // 一般参加者の場合はleave APIを呼ぶ
         await roomService.roomServiceLeaveRoom(roomId, { userId });
-        console.log('Left room as participant');
       }
     } catch (error) {
       console.error('Failed to leave/delete room:', error);
     } finally {
-      // WebSocket切断
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-      }
+      notifyLeave();
+      stopAudio();
+      stopMixedAudio();
+      socketRef.current?.disconnect();
       router.push('/');
     }
   };

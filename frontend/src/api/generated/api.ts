@@ -33,6 +33,9 @@ export interface RoomServiceJoinRoomBody {
     'userName'?: string;
     'userImage'?: string;
 }
+export interface RoomServiceDeleteRoomBody {
+    'userId'?: string;
+}
 export interface RoomServiceLeaveRoomBody {
     'userId'?: string;
 }
@@ -117,13 +120,15 @@ export const RoomServiceApiAxiosParamCreator = function (configuration?: Configu
          * 
          * @summary ルーム削除
          * @param {string} roomId 
-         * @param {string} [userId] 
+         * @param {RoomServiceDeleteRoomBody} body 
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        roomServiceDeleteRoom: async (roomId: string, userId?: string, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+        roomServiceDeleteRoom: async (roomId: string, body: RoomServiceDeleteRoomBody, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
             // verify required parameter 'roomId' is not null or undefined
             assertParamExists('roomServiceDeleteRoom', 'roomId', roomId)
+            // verify required parameter 'body' is not null or undefined
+            assertParamExists('roomServiceDeleteRoom', 'body', body)
             const localVarPath = `/api/v1/room/delete/{roomId}`
                 .replace(`{${"roomId"}}`, encodeURIComponent(String(roomId)));
             // use dummy base URL string because the URL constructor only accepts absolute URLs.
@@ -137,15 +142,14 @@ export const RoomServiceApiAxiosParamCreator = function (configuration?: Configu
             const localVarHeaderParameter = {} as any;
             const localVarQueryParameter = {} as any;
 
-            if (userId !== undefined) {
-                localVarQueryParameter['userId'] = userId;
-            }
-
 
     
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
             setSearchParams(localVarUrlObj, localVarQueryParameter);
             let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
             localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(body, localVarRequestOptions, configuration)
 
             return {
                 url: toPathString(localVarUrlObj),
@@ -356,12 +360,12 @@ export const RoomServiceApiFp = function(configuration?: Configuration) {
          * 
          * @summary ルーム削除
          * @param {string} roomId 
-         * @param {string} [userId] 
+         * @param {RoomServiceDeleteRoomBody} body 
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async roomServiceDeleteRoom(roomId: string, userId?: string, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<V1StandardResponse>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.roomServiceDeleteRoom(roomId, userId, options);
+        async roomServiceDeleteRoom(roomId: string, body: RoomServiceDeleteRoomBody, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<V1StandardResponse>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.roomServiceDeleteRoom(roomId, body, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['RoomServiceApi.roomServiceDeleteRoom']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
@@ -455,12 +459,12 @@ export const RoomServiceApiFactory = function (configuration?: Configuration, ba
          * 
          * @summary ルーム削除
          * @param {string} roomId 
-         * @param {string} [userId] 
+         * @param {RoomServiceDeleteRoomBody} body 
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        roomServiceDeleteRoom(roomId: string, userId?: string, options?: RawAxiosRequestConfig): AxiosPromise<V1StandardResponse> {
-            return localVarFp.roomServiceDeleteRoom(roomId, userId, options).then((request) => request(axios, basePath));
+        roomServiceDeleteRoom(roomId: string, body: RoomServiceDeleteRoomBody, options?: RawAxiosRequestConfig): AxiosPromise<V1StandardResponse> {
+            return localVarFp.roomServiceDeleteRoom(roomId, body, options).then((request) => request(axios, basePath));
         },
         /**
          * 
@@ -535,12 +539,12 @@ export class RoomServiceApi extends BaseAPI {
      * 
      * @summary ルーム削除
      * @param {string} roomId 
-     * @param {string} [userId] 
+     * @param {RoomServiceDeleteRoomBody} body 
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
      */
-    public roomServiceDeleteRoom(roomId: string, userId?: string, options?: RawAxiosRequestConfig) {
-        return RoomServiceApiFp(this.configuration).roomServiceDeleteRoom(roomId, userId, options).then((request) => request(this.axios, this.basePath));
+    public roomServiceDeleteRoom(roomId: string, body: RoomServiceDeleteRoomBody, options?: RawAxiosRequestConfig) {
+        return RoomServiceApiFp(this.configuration).roomServiceDeleteRoom(roomId, body, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**
