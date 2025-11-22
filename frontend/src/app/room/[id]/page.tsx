@@ -428,6 +428,10 @@ export default function RoomPage() {
     }
   };
 
+  const handleChangeAudio = async () => {
+
+  };
+
   const handleLeave = async () => {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
@@ -457,6 +461,7 @@ export default function RoomPage() {
         participants={participants}
         audioEnabled={audioEnabled}
         onToggleAudio={toggleAudio}
+        onChangeAudio={handleChangeAudio}
         onLeave={handleLeave}
       />
       {needsPlaybackResume && (

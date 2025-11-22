@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Mic, MicOff, Headphones, Users, X } from 'lucide-react';
+import { Mic, MicOff, Headphones, Users, X, RefreshCw } from 'lucide-react';
 import { MinidenticonImg } from '@/components/MinidenticonImg';
 
 interface RoomProps {
@@ -16,6 +16,7 @@ interface RoomProps {
   }>;
   audioEnabled: boolean;
   onToggleAudio: () => void;
+  onChangeAudio: () => void;
   onLeave: () => void;
 }
 
@@ -24,6 +25,7 @@ export function Room({
   participants = [],
   audioEnabled,
   onToggleAudio,
+  onChangeAudio,
   onLeave
 }: RoomProps) {
   const [showParticipantsList, setShowParticipantsList] = useState(false);
@@ -129,10 +131,11 @@ export function Room({
           </Button>
 
           <Button
+            onClick={onChangeAudio}
             size="icon"
             className="h-12 w-12 rounded-full bg-green-500 hover:bg-green-600"
           >
-            <Headphones className="h-6 w-6" />
+            <RefreshCw className="h-6 w-6" />
           </Button>
 
           <Button
