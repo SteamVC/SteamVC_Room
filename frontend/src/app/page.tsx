@@ -24,19 +24,23 @@ export default function Page() {
       const config = new Configuration({ basePath: apiUrl });
       const roomService = new RoomServiceApi(config);
 
-      // ユーザーIDを生成
-      const userId = `user_${Date.now()}`;
+      // このクライアント用のユーザーIDを生成
+      const userId = `user_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
 
       // 生成されたAPIクライアントを使用
       const response = await roomService.roomServiceCreateRoom({
         userName: userName,
-        userId: userId,
+        userId,
       });
 
       if (response.data.success && response.data.roomId) {
-        // レスポンスからルームIDを取得してページ遷移（userIdも渡す）
+        // 自分の userId をセッションに保存（他人とは共有されない）
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem(`steamvc_user_${response.data.roomId}`, userId);
+        }
+        // レスポンスからルームIDを取得してページ遷移
         console.log('Room created:', response.data);
-        router.push(`/room/${response.data.roomId}?name=${encodeURIComponent(userName)}&userId=${userId}`);
+        router.push(`/room/${response.data.roomId}?name=${encodeURIComponent(userName)}`);
       } else {
         alert('ルーム作成に失敗しました');
       }
@@ -59,9 +63,11 @@ export default function Page() {
       const response = await roomService.roomServiceGetRoom(roomId);
 
       if (response.data.room) {
-        // 新しいユーザーIDを生成して渡す
-        const userId = `user_${Date.now()}`;
-        router.push(`/room/${roomId}?name=${encodeURIComponent(userName)}&userId=${userId}`);
+        const userId = `user_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem(`steamvc_user_${roomId}`, userId);
+        }
+        router.push(`/room/${roomId}?name=${encodeURIComponent(userName)}`);
       } else {
         alert('指定されたルームが見つかりません');
       }
