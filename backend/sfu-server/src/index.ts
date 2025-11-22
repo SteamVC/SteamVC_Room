@@ -398,8 +398,6 @@ class VoiceConversionPipeline {
 
     const args = [
       '-f', 'wav',
-      '-ar', '22050',
-      '-ac', '2',
       '-i', 'pipe:0',
       '-c:a', 'libopus',
       '-application', 'voip',
