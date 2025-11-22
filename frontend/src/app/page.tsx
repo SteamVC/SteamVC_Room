@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Home } from '@/app/home/Home';
 import { IDInputForm } from '@/app/form/IDInputForm';
 import { RoomServiceApi, Configuration } from '@/api/generated';
+import { API_URL } from '@/lib/endpoints';
 
 type Screen = 'home' | 'joinRoom';
 
@@ -20,8 +21,7 @@ export default function Page() {
 
   const handleCreateRoom = async () => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
-      const config = new Configuration({ basePath: apiUrl });
+      const config = new Configuration({ basePath: API_URL });
       const roomService = new RoomServiceApi(config);
 
       // このクライアント用のユーザーIDを生成
@@ -57,8 +57,7 @@ export default function Page() {
 
   const handleRoomIdSubmit = async (roomId: string) => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
-      const config = new Configuration({ basePath: apiUrl });
+      const config = new Configuration({ basePath: API_URL });
       const roomService = new RoomServiceApi(config);
 
       const response = await roomService.roomServiceGetRoom(roomId);

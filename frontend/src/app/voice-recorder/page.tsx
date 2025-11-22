@@ -1,24 +1,23 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Mic, Square, Download, RefreshCw, ArrowLeft, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { convertBlobToWav } from '@/lib/wav';
+import { WAV_UPLOAD_URL } from '@/lib/endpoints';
 
-const readingScripts = [
-  'この文章は声質変換用の録音テストです。マイクから一定の距離を保って話してください。',
-  '落ち着いた声で、抑揚を付けずに読み上げてください。背景のノイズが入らない環境が理想です。',
-  '録音を確認したら、必要に応じて別の文章でもう一度録音してみましょう。'
-];
+const defaultScript =
+  process.env.NEXT_PUBLIC_DEFAULT_SCRIPT ||
+  'この文章は声質変換用の録音テストです。マイクから一定の距離を保って話してください。';
 
 function VoiceRecorderContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextPath = searchParams.get('next');
   const nextLabel = searchParams.get('nextLabel') || (nextPath ? '次へ進む' : 'ホームに戻る');
-  const [selectedScriptIndex, setSelectedScriptIndex] = useState(0);
+  const [scriptText, setScriptText] = useState(defaultScript);
   const [isRecording, setIsRecording] = useState(false);
   const [isConverting, setIsConverting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -32,10 +31,7 @@ function VoiceRecorderContent() {
   const chunksRef = useRef<BlobPart[]>([]);
   const wavBlobRef = useRef<Blob | null>(null);
 
-  const downloadFileName = useMemo(
-    () => `voice-sample-${selectedScriptIndex + 1}.wav`,
-    [selectedScriptIndex]
-  );
+  const downloadFileName = 'voice-sample.wav';
 
   const cleanupStream = () => {
     mediaRecorderRef.current = null;
@@ -81,7 +77,7 @@ function VoiceRecorderContent() {
       });
       mediaStreamRef.current = stream;
 
-      const scriptAtStart = readingScripts[selectedScriptIndex];
+      const scriptAtStart = scriptText || defaultScript;
       const recorder = new MediaRecorder(stream);
       mediaRecorderRef.current = recorder;
       chunksRef.current = [];
@@ -117,7 +113,7 @@ function VoiceRecorderContent() {
       recorder.start();
       setRecordedScript(scriptAtStart);
       setIsRecording(true);
-      setStatusMessage('録音中です。選択した文章を落ち着いて読み上げてください。');
+      setStatusMessage('録音中です。入力した文章を落ち着いて読み上げてください。');
     } catch (error) {
       console.error('録音開始に失敗しました', error);
       setStatusMessage('録音を開始できませんでした。');
@@ -151,7 +147,7 @@ function VoiceRecorderContent() {
   };
 
   const uploadIfNeeded = async () => {
-    const uploadUrl = process.env.NEXT_PUBLIC_WAV_UPLOAD_URL;
+    const uploadUrl = WAV_UPLOAD_URL;
     if (!uploadUrl || !wavBlobRef.current) return;
 
     // nextPath から roomId を抜き出し、セッションに保存済みの userId を付与して送る
@@ -236,29 +232,20 @@ function VoiceRecorderContent() {
           </CardHeader>
           <CardContent className="grid gap-6 lg:grid-cols-[1.2fr_1fr] lg:items-start">
             <div className="space-y-3">
-              <div className="rounded-lg border border-amber-200 bg-white/70 p-4 shadow-sm">
-                <p className="text-xs font-semibold text-amber-700 mb-2">現在の文章</p>
-                <p className="text-lg leading-relaxed font-medium text-amber-950">
-                  {readingScripts[selectedScriptIndex]}
+              <div className="rounded-lg border border-amber-200 bg-white/70 p-4 shadow-sm space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-amber-700">読み上げる文章</p>
+                  <span className="text-[11px] text-muted-foreground">自由に編集できます</span>
+                </div>
+                <textarea
+                  value={scriptText}
+                  onChange={(e) => setScriptText(e.target.value)}
+                  className="w-full min-h-[8rem] rounded-md border border-amber-200 bg-white px-3 py-2 text-sm leading-relaxed outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-200"
+                  placeholder="録音に使う文章を入力してください"
+                />
+                <p className="text-xs text-muted-foreground">
+                  静かな環境で、文章を変更したら保存や録音前に読み上げ内容を確認してください。
                 </p>
-              </div>
-
-              <div className="flex flex-wrap gap-3">
-                {readingScripts.map((script, index) => (
-                  <button
-                    key={script}
-                    type="button"
-                    onClick={() => setSelectedScriptIndex(index)}
-                    className={`rounded-lg border px-4 py-3 text-left transition shadow-sm ${
-                      selectedScriptIndex === index
-                        ? 'border-amber-600 bg-amber-100 text-amber-950'
-                        : 'border-amber-200 bg-white/80 text-amber-900 hover:border-amber-400'
-                    }`}
-                  >
-                    <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Script {index + 1}</p>
-                    <p className="text-sm leading-relaxed max-h-20 overflow-y-auto">{script}</p>
-                  </button>
-                ))}
               </div>
             </div>
 
