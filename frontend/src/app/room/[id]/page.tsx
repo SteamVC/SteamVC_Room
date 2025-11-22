@@ -50,7 +50,19 @@ export default function RoomPage() {
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [ownerId, setOwnerId] = useState<string | null>(null);
-  const [userId, setUserId] = useState<string>(userIdFromUrl || `user_${Date.now()}`);
+  const [userId] = useState<string>(() => {
+    const fallback = userIdFromUrl || `user_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
+    if (typeof window === 'undefined') {
+      return fallback;
+    }
+    const key = `steamvc_user_${roomId}`;
+    const stored = sessionStorage.getItem(key);
+    if (stored) {
+      return stored;
+    }
+    sessionStorage.setItem(key, fallback);
+    return fallback;
+  });
   const [displayName, setDisplayName] = useState<string>(initialNameFromUrl);
 
   const socketRef = useRef<Socket | null>(null);
@@ -448,7 +460,7 @@ export default function RoomPage() {
       const roomService = new RoomServiceApi(config);
 
       if (ownerId && userId === ownerId) {
-        await roomService.roomServiceDeleteRoom(roomId, userId);
+        await roomService.roomServiceDeleteRoom(roomId, { userId });
       } else {
         await roomService.roomServiceLeaveRoom(roomId, { userId });
       }
