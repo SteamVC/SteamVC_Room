@@ -2,7 +2,7 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# Mediasoupのビルド依存関係とFFmpeg
+# Mediasoupのビルド依存関係、FFmpeg、node-vad用の依存関係
 RUN apk add --no-cache python3 py3-pip make g++ gcc linux-headers ffmpeg
 
 # package.json / package-lock.json をコピーして依存関係をインストール
@@ -24,13 +24,15 @@ FROM node:22-alpine
 
 WORKDIR /app
 
-# 実行に必要な FFmpeg と依存関係のみを追加
-RUN apk add --no-cache ffmpeg
+# 実行に必要な FFmpeg と依存関係（node-vad用にpython3/build-tools）を追加
+RUN apk add --no-cache ffmpeg python3 py3-pip make g++ gcc linux-headers
 
-# 本番依存関係のみをコピー
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/dist ./dist
+# package.jsonをコピーして本番依存関係をインストール（コンテナ内でビルド）
 COPY --from=builder /app/package*.json ./
+RUN npm ci --omit=dev
+
+# ビルド成果物をコピー
+COPY --from=builder /app/dist ./dist
 
 EXPOSE 3000
 EXPOSE 10000-10100/udp
