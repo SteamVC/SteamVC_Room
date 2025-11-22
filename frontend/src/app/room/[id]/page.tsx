@@ -7,6 +7,7 @@ import { Device, types } from 'mediasoup-client';
 import { Room } from '@/app/room/Room';
 import { useRoomWebSocket } from '@/hooks/useRoomWebSocket';
 import { RoomServiceApi, Configuration } from '@/api/generated';
+import { API_URL, SFU_URL } from '@/lib/endpoints';
 
 type RtpCapabilities = types.RtpCapabilities;
 type Transport = types.Transport;
@@ -33,8 +34,6 @@ interface SocketResponse {
   rtpParameters?: RtpParameters;
   success?: boolean;
 }
-
-const SFU_URL = process.env.NEXT_PUBLIC_SFU_URL || 'http://localhost:3000';
 
 export default function RoomPage() {
   const params = useParams();
@@ -177,8 +176,7 @@ export default function RoomPage() {
 
     const initializeRoom = async () => {
       try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
-        const config = new Configuration({ basePath: apiUrl });
+        const config = new Configuration({ basePath: API_URL });
         const roomService = new RoomServiceApi(config);
 
         const response = await roomService.roomServiceGetRoom(roomId);

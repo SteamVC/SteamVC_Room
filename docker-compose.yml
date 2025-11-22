@@ -55,6 +55,7 @@ services:
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8080
       - NEXT_PUBLIC_SFU_URL=http://localhost:3000
+      - NEXT_PUBLIC_WAV_UPLOAD_URL=http://localhost:8080/api/v1/voice/upload
     depends_on:
       - api-server
       - sfu-server

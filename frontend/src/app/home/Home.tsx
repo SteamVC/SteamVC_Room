@@ -2,14 +2,15 @@
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, Search } from 'lucide-react';
+import { Plus, Search, Mic } from 'lucide-react';
 
 interface HomeProps {
   onCreateRoom: () => void;
   onJoinRoom: () => void;
+  onOpenRecorder: () => void;
 }
 
-export function Home({ onCreateRoom, onJoinRoom }: HomeProps) {
+export function Home({ onCreateRoom, onJoinRoom, onOpenRecorder }: HomeProps) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-purple-400 to-pink-500 p-4">
       <Card className="w-full max-w-md">
@@ -35,6 +36,13 @@ export function Home({ onCreateRoom, onJoinRoom }: HomeProps) {
           >
             <Search className="mr-2 h-6 w-6" />
             部屋を探す
+          </Button>
+          <Button
+            onClick={onOpenRecorder}
+            className="w-full h-20 text-lg bg-amber-500 hover:bg-amber-600"
+          >
+            <Mic className="mr-2 h-6 w-6" />
+            声質録音ブース
           </Button>
         </CardContent>
       </Card>

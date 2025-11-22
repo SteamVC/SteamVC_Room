@@ -14,9 +14,10 @@ import (
 
 // RoomService はルーム管理のビジネスロジックを提供します
 type RoomService struct {
-	repo   repo.RoomRepo  // データ永続化を担当するリポジトリ
-	idg    IDGenerator    // ルームID生成器
-	ttlSec int            // ルームの有効期限（秒）
+	repo      repo.RoomRepo  // データ永続化を担当するリポジトリ
+	voiceRepo repo.VoiceRepo // 録音データ保存先
+	idg       IDGenerator    // ルームID生成器
+	ttlSec    int            // ルームの有効期限（秒）
 }
 
 // IDGenerator はユニークなIDを生成するインターフェース
@@ -38,6 +39,11 @@ func NewRoomIDGenerator() IDGenerator {
 // NewRoomService は新しいRoomServiceを作成します
 func NewRoomService(r repo.RoomRepo, idg IDGenerator, ttlSec int) *RoomService {
 	return &RoomService{repo: r, idg: idg, ttlSec: ttlSec}
+}
+
+// NewRoomServiceWithVoiceRepo は録音保存先を指定するコンストラクタ
+func NewRoomServiceWithVoiceRepo(r repo.RoomRepo, voice repo.VoiceRepo, idg IDGenerator, ttlSec int) *RoomService {
+	return &RoomService{repo: r, voiceRepo: voice, idg: idg, ttlSec: ttlSec}
 }
 
 // Create は新しいルームを作成します
@@ -153,4 +159,20 @@ func (s *RoomService) SetMuteState(ctx context.Context, roomId, userId string, i
 		return err
 	}
 	return nil
+}
+
+// UploadVoice は録音データを保存します（設定されている保存先に依存）
+func (s *RoomService) UploadVoice(ctx context.Context, roomId, userId string, data []byte, script string) error {
+	if s.voiceRepo == nil {
+		return errors.New("voice repo not configured")
+	}
+	return s.voiceRepo.SaveVoice(ctx, roomId, userId, data, script)
+}
+
+// GetVoice は保存された録音を取得します
+func (s *RoomService) GetVoice(ctx context.Context, roomId, userId string) ([]byte, string, error) {
+	if s.voiceRepo == nil {
+		return nil, "", errors.New("voice repo not configured")
+	}
+	return s.voiceRepo.GetVoice(ctx, roomId, userId)
 }

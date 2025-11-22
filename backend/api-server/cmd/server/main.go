@@ -56,15 +56,17 @@ func main() {
 	// 依存性を注入しながら各レイヤーを初期化
 	// Repository層: データの永続化を担当
 	rr := repo.NewRedisRoomRepo(rdb)
+	vr := repo.NewRedisVoiceRepo(rdb)
 	// ID生成器: ユニークなルームIDを生成
 	idg := service.NewRoomIDGenerator()
 	// Service層: ビジネスロジックを担当
-	svc := service.NewRoomService(rr, idg, cfg.RoomTTL)
+	svc := service.NewRoomServiceWithVoiceRepo(rr, vr, idg, cfg.RoomTTL)
 	// Handler層: HTTPリクエストの処理を担当
 	h := handlers.NewRoomHandler(svc)
 	wsHandler := handlers.NewWebSocketHandler(svc)
+	voiceHandler := handlers.NewVoiceHandler(svc)
 	// ルーター: エンドポイントとハンドラーのマッピング
-	router := httpx.NewRouter(h, wsHandler, cfg.AllowedOrigin)
+	router := httpx.NewRouter(h, wsHandler, voiceHandler, cfg.AllowedOrigin)
 
 	srv := &http.Server{
 		Addr:              cfg.APIAddr,
