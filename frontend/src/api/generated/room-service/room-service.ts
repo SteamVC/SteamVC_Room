@@ -11,6 +11,7 @@ import type {
   V1StandardResponse
 } from '.././models';
 
+import { RoomServiceDeleteRoomBody } from '../api';
 import { customAxiosInstance } from '../../axios-instance';
 
 
@@ -28,9 +29,10 @@ const roomServiceCreateRoom = (
     }
   const roomServiceDeleteRoom = (
     roomId: string,
+    body: RoomServiceDeleteRoomBody,
  ) => {
       return customAxiosInstance<V1StandardResponse>(
-      {url: `/api/v1/room/delete/${roomId}`, method: 'DELETE'
+      {url: `/api/v1/room/delete/${roomId}`, method: 'DELETE', data: body
     },
       );
     }
