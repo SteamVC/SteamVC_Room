@@ -21,6 +21,7 @@ function VoiceRecorderContent() {
   const [selectedScriptIndex, setSelectedScriptIndex] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
   const [isConverting, setIsConverting] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState('マイクの準備を開始できます。');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -29,6 +30,7 @@ function VoiceRecorderContent() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
+  const wavBlobRef = useRef<Blob | null>(null);
 
   const downloadFileName = useMemo(
     () => `voice-sample-${selectedScriptIndex + 1}.wav`,
@@ -92,18 +94,19 @@ function VoiceRecorderContent() {
 
       recorder.onstop = async () => {
         setIsRecording(false);
-        setIsConverting(true);
-        setStatusMessage('録音データを WAV に変換しています...');
-        try {
-          const webmBlob = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' });
-          const wavBlob = await convertBlobToWav(webmBlob);
-          const wavUrl = URL.createObjectURL(wavBlob);
-          setAudioUrl(wavUrl);
-          setRecordedScript(scriptAtStart);
-          setStatusMessage('録音が完了しました。再生やダウンロードで確認できます。');
-        } catch (error) {
-          console.error('WAV 変換に失敗しました', error);
-          setErrorMessage('WAV 変換に失敗しました。ブラウザのサポート状況を確認して再試行してください。');
+    setIsConverting(true);
+    setStatusMessage('録音データを WAV に変換しています...');
+    try {
+      const webmBlob = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' });
+      const wavBlob = await convertBlobToWav(webmBlob);
+      const wavUrl = URL.createObjectURL(wavBlob);
+      setAudioUrl(wavUrl);
+      wavBlobRef.current = wavBlob;
+      setRecordedScript(scriptAtStart);
+      setStatusMessage('録音が完了しました。再生やダウンロードで確認できます。');
+    } catch (error) {
+      console.error('WAV 変換に失敗しました', error);
+      setErrorMessage('WAV 変換に失敗しました。ブラウザのサポート状況を確認して再試行してください。');
           setStatusMessage('録音データの処理でエラーが発生しました。');
         } finally {
           setIsConverting(false);
@@ -141,12 +144,52 @@ function VoiceRecorderContent() {
       URL.revokeObjectURL(audioUrl);
     }
     setAudioUrl(null);
+    wavBlobRef.current = null;
     setRecordedScript(null);
     setStatusMessage('マイクの準備を開始できます。');
     setErrorMessage(null);
   };
 
-  const handleProceed = () => {
+  const uploadIfNeeded = async () => {
+    const uploadUrl = process.env.NEXT_PUBLIC_WAV_UPLOAD_URL;
+    if (!uploadUrl || !wavBlobRef.current) return;
+
+    // nextPath から roomId を抜き出し、セッションに保存済みの userId を付与して送る
+    const match = nextPath?.match(/\/room\/(.+?)(\?|$)/);
+    const roomId = match?.[1];
+    const userId = roomId && typeof window !== 'undefined'
+      ? sessionStorage.getItem(`steamvc_user_${roomId}`)
+      : null;
+
+    const form = new FormData();
+    form.append('file', wavBlobRef.current, downloadFileName);
+    if (roomId) form.append('roomId', roomId);
+    if (userId) form.append('userId', userId);
+    if (recordedScript) form.append('script', recordedScript);
+
+    setIsUploading(true);
+    setStatusMessage('録音データをサーバーへ送信しています...');
+    setErrorMessage(null);
+
+    try {
+      const res = await fetch(uploadUrl, {
+        method: 'POST',
+        body: form,
+      });
+      if (!res.ok) {
+        throw new Error(`Upload failed with status ${res.status}`);
+      }
+      setStatusMessage('録音データの送信が完了しました。');
+    } catch (error) {
+      console.error('録音データの送信に失敗しました', error);
+      setErrorMessage('録音データの送信に失敗しました。ネットワークとサーバー設定を確認してください。');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleProceed = async () => {
+    await uploadIfNeeded();
     if (nextPath) {
       router.push(nextPath);
     } else {
@@ -235,7 +278,7 @@ function VoiceRecorderContent() {
                   <Button
                     type="button"
                     onClick={handleStartRecording}
-                    disabled={isConverting}
+                    disabled={isConverting || isUploading}
                     className="bg-amber-600 hover:bg-amber-700 text-white px-5"
                   >
                     <Mic className="h-4 w-4" />
@@ -256,7 +299,7 @@ function VoiceRecorderContent() {
                   type="button"
                   onClick={handleReset}
                   variant="outline"
-                  disabled={isRecording || isConverting}
+                  disabled={isRecording || isConverting || isUploading}
                 >
                   <RefreshCw className="h-4 w-4" />
                   リセット
@@ -290,6 +333,7 @@ function VoiceRecorderContent() {
                 <Button
                   type="button"
                   onClick={handleProceed}
+                  disabled={isRecording || isConverting || isUploading}
                   className="bg-amber-700 hover:bg-amber-800 text-white px-5"
                 >
                   <ArrowRight className="h-4 w-4" />

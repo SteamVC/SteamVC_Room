@@ -9,7 +9,7 @@ import (
 	"github.com/go-chi/cors"
 )
 
-func NewRouter(h *handlers.RoomHandler, wsHandler *handlers.WebSocketHandler, allowedOrigins []string) http.Handler {
+func NewRouter(h *handlers.RoomHandler, wsHandler *handlers.WebSocketHandler, voiceHandler *handlers.VoiceHandler, allowedOrigins []string) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID, middleware.RealIP, middleware.Logger, middleware.Recoverer)
 
@@ -35,6 +35,12 @@ func NewRouter(h *handlers.RoomHandler, wsHandler *handlers.WebSocketHandler, al
 		r.Post("/{roomId}/touch", h.Touch)
 		// WebSocketエンドポイント
 		r.Get("/{roomId}/ws", wsHandler.HandleWebSocket)
+	})
+
+	// 録音データ
+	r.Route("/api/v1/voice", func(r chi.Router) {
+		r.Post("/upload", voiceHandler.Upload)
+		r.Get("/{roomId}/{userId}", voiceHandler.Get)
 	})
 
 	// 旧API互換性エンドポイント（フロント担当が書いた仕様）
