@@ -64,7 +64,9 @@ export default function RoomPage() {
   const producerTransportRef = useRef<Transport | null>(null);
   const consumerTransportRef = useRef<Transport | null>(null);
   const audioProducerRef = useRef<Producer | null>(null);
-  const mixedConsumerRef = useRef<Consumer | null>(null);
+  const consumersRef = useRef<Map<string, Consumer>>(new Map());
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioDestinationRef = useRef<MediaStreamAudioDestinationNode | null>(null);
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
   const hasInitializedRef = useRef(false);
   const muteStateRef = useRef<Record<string, boolean>>({});
@@ -96,15 +98,12 @@ export default function RoomPage() {
     });
   }, []);
 
-  const stopMixedAudio = useCallback(() => {
-    if (mixedConsumerRef.current) {
-      mixedConsumerRef.current.close();
-      mixedConsumerRef.current = null;
-    }
+  const stopAllConsumers = useCallback(() => {
+    consumersRef.current.forEach(consumer => consumer.close());
+    consumersRef.current.clear();
     if (audioElementRef.current) {
       audioElementRef.current.pause();
       audioElementRef.current.srcObject = null;
-      audioElementRef.current = null;
     }
   }, []);
 
@@ -136,12 +135,59 @@ export default function RoomPage() {
     }
   });
 
+  const consumeConvertedProducer = useCallback(async (producerId: string, peerUserId: string) => {
+    if (!deviceRef.current || !consumerTransportRef.current) return;
+
+    try {
+      socketRef.current?.emit('consume-converted', {
+        roomId,
+        producerId,
+        rtpCapabilities: deviceRef.current.rtpCapabilities
+      }, async (response: SocketResponse) => {
+        if (response.error || !response.id || !response.producerId || !response.kind || !response.rtpParameters) {
+          console.error('Consume converted failed:', response.error);
+          return;
+        }
+
+        const consumer = await consumerTransportRef.current!.consume({
+          id: response.id,
+          producerId: response.producerId,
+          kind: response.kind,
+          rtpParameters: response.rtpParameters
+        });
+
+        consumersRef.current.set(peerUserId, consumer);
+
+        // AudioContextでミックス
+        if (!audioContextRef.current) {
+          audioContextRef.current = new AudioContext();
+          audioDestinationRef.current = audioContextRef.current.createMediaStreamDestination();
+
+          if (!audioElementRef.current) {
+            audioElementRef.current = new Audio();
+          }
+          audioElementRef.current.srcObject = audioDestinationRef.current.stream;
+          audioElementRef.current.play().catch(() => {
+            setNeedsPlaybackResume(true);
+          });
+        }
+
+        const source = audioContextRef.current.createMediaStreamSource(new MediaStream([consumer.track]));
+        source.connect(audioDestinationRef.current!);
+
+        console.log(`Consuming audio from ${peerUserId}`);
+      });
+    } catch (error) {
+      console.error('Consume converted error:', error);
+    }
+  }, [roomId]);
+
   const connectToRoom = useCallback(async () => {
     const socket = io(SFU_URL);
     socketRef.current = socket;
 
     socket.on('connect', () => {
-      socket.emit('join-room', { roomId, userId }, async (response: SocketResponse) => {
+      socket.emit('join-room', { roomId, userId }, async (response: any) => {
         if (response.error || !response.rtpCapabilities) {
           console.error('Failed to join MCU server', response.error);
           return;
@@ -150,24 +196,38 @@ export default function RoomPage() {
         const device = new Device();
         await device.load({ routerRtpCapabilities: response.rtpCapabilities });
         deviceRef.current = device;
+
+        // recv transportを事前に作成
+        const recvTransport = await createTransport('recv');
+        if (recvTransport) {
+          consumerTransportRef.current = recvTransport;
+        }
+
+        // 既存の参加者の音声をconsume
+        if (response.existingProducers && Array.isArray(response.existingProducers)) {
+          for (const p of response.existingProducers) {
+            if (p.convertedProducerId && p.userId !== userId) {
+              await consumeConvertedProducer(p.convertedProducerId, p.userId);
+            }
+          }
+        }
+
         setIsConnected(true);
       });
     });
 
-    socket.on('mix-ready', (payload: { producerId: string | null }) => {
-      if (payload.producerId) {
-        consumeMixed();
-      } else {
-        stopMixedAudio();
+    socket.on('producer-added', async (payload: { userId: string; convertedProducerId?: string }) => {
+      if (payload.userId !== userId && payload.convertedProducerId) {
+        await consumeConvertedProducer(payload.convertedProducerId, payload.userId);
       }
     });
 
     socket.on('disconnect', () => {
       setIsConnected(false);
-      stopMixedAudio();
+      stopAllConsumers();
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomId, userId]);
+  }, [roomId, userId, consumeConvertedProducer]);
 
   useEffect(() => {
     if (hasInitializedRef.current) {
@@ -220,7 +280,7 @@ export default function RoomPage() {
 
     return () => {
       socketRef.current?.disconnect();
-      stopMixedAudio();
+      stopAllConsumers();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);
@@ -354,66 +414,12 @@ export default function RoomPage() {
     updateParticipantMuteState(userId, true);
   };
 
-  const consumeMixed = async () => {
-    if (!deviceRef.current) return;
-
-    try {
-      if (!consumerTransportRef.current) {
-        const transport = await createTransport('recv');
-        if (!transport) return;
-        consumerTransportRef.current = transport;
-      }
-
-      socketRef.current?.emit('consume-mix', {
-        roomId,
-        userId,
-        rtpCapabilities: deviceRef.current.rtpCapabilities
-      }, async (response: SocketResponse) => {
-        if (response.error === 'no mixed producer') {
-          return;
-        }
-        if (response.error || !response.id || !response.producerId || !response.kind || !response.rtpParameters) {
-          console.error('Consume mix failed:', response.error);
-          return;
-        }
-
-        const consumer = await consumerTransportRef.current!.consume({
-          id: response.id,
-          producerId: response.producerId,
-          kind: response.kind,
-          rtpParameters: response.rtpParameters
-        });
-
-        mixedConsumerRef.current?.close();
-        mixedConsumerRef.current = consumer;
-
-        if (!audioElementRef.current) {
-          audioElementRef.current = new Audio();
-        }
-        audioElementRef.current.srcObject = new MediaStream([consumer.track]);
-        audioElementRef.current.play().catch(() => {
-          console.warn('自動再生がブロックされました。クリックなどの操作後に再試行してください。');
-          setNeedsPlaybackResume(true);
-        });
-        // Chrome で自動再生がサイレントに失敗する場合のフォロー
-        setTimeout(() => {
-          if (audioElementRef.current && audioElementRef.current.paused) {
-            setNeedsPlaybackResume(true);
-          }
-        }, 500);
-      });
-    } catch (error) {
-      console.error('Consume mixed error:', error);
-    }
-  };
 
   const resumePlayback = async () => {
     try {
       if (audioElementRef.current) {
         await audioElementRef.current.play();
         setNeedsPlaybackResume(false);
-      } else {
-        await consumeMixed();
       }
     } catch (e) {
       console.error('再生再開に失敗しました', e);
@@ -444,7 +450,7 @@ export default function RoomPage() {
     } finally {
       notifyLeave();
       stopAudio();
-      stopMixedAudio();
+      stopAllConsumers();
       socketRef.current?.disconnect();
       router.push('/');
     }

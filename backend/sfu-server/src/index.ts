@@ -499,10 +499,20 @@ class MixerPipeline {
   }
 
   async rebuild(inputs: Array<{ producer: Producer }>): Promise<Producer | undefined> {
+    // 入力が変わっていない場合はスキップ
+    const newInputIds = inputs.map(i => i.producer.id).sort().join(',');
+    const currentInputIds = this.inputs.map(i => i.consumer.producerId).sort().join(',');
+
+    if (newInputIds === currentInputIds && this.mixProducer) {
+      console.log(`[Mixer ${this.targetUserId}] No changes, keeping existing mixer`);
+      return this.mixProducer;
+    }
+
     // 旧パイプラインは全て閉じてから再構築
     await this.close();
 
     if (inputs.length === 0) {
+      console.log(`[Mixer ${this.targetUserId}] No inputs, returning undefined`);
       return undefined;
     }
 
@@ -768,7 +778,19 @@ io.on('connection', (socket) => {
       };
       room.peers.set(userId, peer);
       socket.join(roomId);
-      callback({ rtpCapabilities: router.rtpCapabilities });
+
+      // 既存の参加者のconvertedProducerを通知
+      const existingProducers = Array.from(room.peers.values())
+        .filter(p => p.userId !== userId && p.convertedProducer)
+        .map(p => ({
+          userId: p.userId,
+          convertedProducerId: p.convertedProducer!.id,
+        }));
+
+      callback({
+        rtpCapabilities: router.rtpCapabilities,
+        existingProducers,
+      });
     } catch (e) {
       console.error('join-room error', e);
       callback({ error: 'failed to join room' });
@@ -882,15 +904,59 @@ io.on('connection', (socket) => {
         console.log(`[${req.userId}] Voice conversion pipeline started`);
       }
 
-      await rebuildMixers(room);
-
       callback({ id: producer.id });
-      socket.to([...socket.rooms].filter((r) => r === req.roomId)).emit('producer-added', {
+
+      // 他のクライアントに変換済みProducerを通知
+      socket.to(req.roomId).emit('producer-added', {
         userId: req.userId,
+        convertedProducerId: peer.convertedProducer?.id,
       });
     } catch (e) {
       console.error('produce error', e);
       callback({ error: 'produce failed' });
+    }
+  });
+
+  socket.on('consume-converted', async (req: { roomId: string; producerId: string; rtpCapabilities: any }, callback) => {
+    try {
+      const room = roomManager.getRoom(req.roomId);
+      if (!room) {
+        callback({ error: 'room not found' });
+        return;
+      }
+
+      const peer = findPeerBySocket(room, socket.id);
+      if (!peer) {
+        callback({ error: 'peer not found' });
+        return;
+      }
+
+      const recvTransport = peer.transports.recv;
+      if (!recvTransport) {
+        callback({ error: 'recv transport missing' });
+        return;
+      }
+
+      if (!room.router.canConsume({ producerId: req.producerId, rtpCapabilities: req.rtpCapabilities })) {
+        callback({ error: 'cannot consume' });
+        return;
+      }
+
+      const consumer = await recvTransport.consume({
+        producerId: req.producerId,
+        rtpCapabilities: req.rtpCapabilities,
+        paused: false,
+      });
+
+      callback({
+        id: consumer.id,
+        producerId: consumer.producerId,
+        kind: consumer.kind,
+        rtpParameters: consumer.rtpParameters,
+      });
+    } catch (e) {
+      console.error('consume-converted error', e);
+      callback({ error: 'consume failed' });
     }
   });
 
@@ -1016,6 +1082,8 @@ async function rebuildMixForPeer(room: RoomState, targetUserId: string) {
     .map((p) => ({
       producer: p.convertedProducer as Producer,
     }));
+
+  console.log(`[${targetUserId}] Rebuilding mixer with ${inputs.length} speaking peers`);
 
   if (!target.mixer) {
     target.mixer = new MixerPipeline(room.router.id, targetUserId, room.router);
